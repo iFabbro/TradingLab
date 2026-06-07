@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import argparse
-from pathlib import Path
-from pprint import pprint
 import sys
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -11,7 +10,25 @@ if str(ROOT) not in sys.path:
 
 from src.backtest import BacktestEngine
 from src.optimization import format_optimization_report, optimize_strategy
-from src.strategies import StrategyConfig
+from src.strategies import (
+    MeanReversionStrategy,
+    MomentumStrategy,
+    StrategyConfig,
+    TrendFollowingStrategy,
+)
+
+
+def build_strategy(config: StrategyConfig, strategy_name: str):
+    mapping = {
+        "momentum": MomentumStrategy,
+        "mean_reversion": MeanReversionStrategy,
+        "trend_following": TrendFollowingStrategy,
+    }
+    try:
+        strategy_cls = mapping[strategy_name]
+    except KeyError as exc:
+        raise ValueError(f"Strategia non valida: {strategy_name}") from exc
+    return strategy_cls(config)
 
 
 def main() -> int:
@@ -19,7 +36,11 @@ def main() -> int:
     parser.add_argument("--name", required=True)
     parser.add_argument("--universe", required=True, nargs="+")
     parser.add_argument("--lookback", type=int, required=True)
-    parser.add_argument("--strategy", required=True)
+    parser.add_argument(
+        "--strategy",
+        required=True,
+        choices=["momentum", "mean_reversion", "trend_following"],
+    )
     args = parser.parse_args()
 
     base_config = StrategyConfig(
@@ -28,11 +49,12 @@ def main() -> int:
         lookback=args.lookback,
     )
 
-    def engine_factory(cfg):
+    def engine_factory(cfg: StrategyConfig) -> BacktestEngine:
         return BacktestEngine(cfg)
 
     result = optimize_strategy(
         engine_factory=engine_factory,
+        strategy_factory=lambda cfg: build_strategy(cfg, args.strategy),
         base_config=base_config,
         train_data="train",
         test_data="test",
@@ -40,13 +62,7 @@ def main() -> int:
     )
 
     print(format_optimization_report(result))
-    best = result.best_candidate
-    if best is not None:
-        print("\nBest params:")
-        pprint(best.params)
-        return 0
-
-    return 1
+    return 0 if result.best_candidate is not None else 1
 
 
 if __name__ == "__main__":
