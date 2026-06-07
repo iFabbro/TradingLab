@@ -1,0 +1,81 @@
+#!/usr/bin/env python3
+"""TradingLab Terminal Hub — entry-point operativo."""
+
+import sys
+import subprocess
+import os
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent
+SCRIPTS = ROOT / "scripts"
+
+CYAN  = "\033[96m"
+GREEN = "\033[92m"
+YELLOW= "\033[93m"
+RED   = "\033[91m"
+BOLD  = "\033[1m"
+RESET = "\033[0m"
+
+COMMANDS = {
+    "data":       ("download_data.py",            "Download dati di mercato"),
+    "backtest":   ("run_backtest.py",             "Esegui backtest strategia"),
+    "trades":     ("generate_trades.py",          "Genera lista trade / setup"),
+    "macro":      ("run_macro.py",                "Analisi macro regime"),
+    "optim":      ("run_strategy_optimization.py","Ottimizzazione strategia"),
+    "risk":       ("analyze_risk.py",             "Analisi risk / drawdown"),
+    "montecarlo": ("run_montecarlo.py",           "Simulazione Monte Carlo"),
+}
+
+def print_banner():
+    print(f"\n{BOLD}{CYAN}╔══════════════════════════════════╗{RESET}")
+    print(f"{BOLD}{CYAN}║     TradingLab Terminal Hub      ║{RESET}")
+    print(f"{BOLD}{CYAN}╚══════════════════════════════════╝{RESET}\n")
+
+def show_help():
+    print_banner()
+    print(f"{BOLD}USAGE:{RESET}  tlab <command> [args]\n")
+    print(f"{BOLD}COMANDI:{RESET}")
+    for cmd, (_, desc) in COMMANDS.items():
+        print(f"  {GREEN}{cmd:<14}{RESET} {desc}")
+    print(f"  {GREEN}{'status':<14}{RESET} Stato repo git")
+    print(f"  {GREEN}{'help':<14}{RESET} Mostra questo messaggio")
+    print()
+
+def run_script(script_name, extra_args):
+    script_path = SCRIPTS / script_name
+    if not script_path.exists():
+        print(f"{RED}✗ Script non trovato: {script_path}{RESET}")
+        sys.exit(1)
+    cmd = [sys.executable, str(script_path)] + extra_args
+    print(f"{YELLOW}▶ {' '.join(cmd)}{RESET}\n")
+    result = subprocess.run(cmd, cwd=ROOT)
+    sys.exit(result.returncode)
+
+def show_status():
+    print_banner()
+    print(f"{BOLD}── Git Status ──────────────────────{RESET}")
+    subprocess.run(["git", "-C", str(ROOT), "status", "-sb"])
+    print(f"\n{BOLD}── Ultimi 5 commit ─────────────────{RESET}")
+    subprocess.run(["git", "-C", str(ROOT), "log", "--oneline", "-5"])
+    print(f"\n{BOLD}── Branch corrente ─────────────────{RESET}")
+    subprocess.run(["git", "-C", str(ROOT), "branch", "--show-current"])
+    print()
+
+def main():
+    args = sys.argv[1:]
+    if not args or args[0] in ("help", "--help", "-h"):
+        show_help()
+        return
+    cmd = args[0]
+    extra = args[1:]
+    if cmd == "status":
+        show_status()
+    elif cmd in COMMANDS:
+        run_script(COMMANDS[cmd][0], extra)
+    else:
+        print(f"{RED}✗ Comando sconosciuto: '{cmd}'{RESET}")
+        print(f"  Usa {BOLD}tlab help{RESET} per la lista comandi.")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
