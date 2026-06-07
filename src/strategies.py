@@ -132,3 +132,47 @@ class TrendFollowingStrategy(BaseStrategy):
         sma_slow = prices.iloc[-slow:].mean()
         signal = (sma_fast > sma_slow).astype(float)
         return signal
+
+
+# ── Fase 9 ──────────────────────────────────────────────────────────────────
+
+from src.factors import momentum_score, value_score, volatility_score, trend_score
+
+
+class MultiFactorStrategy:
+    """
+    Strategia multi-fattoriale con punteggio combinato pesato.
+    Pesi default: momentum 0.4, value 0.2, volatility 0.2, trend 0.2
+    """
+
+    DEFAULT_WEIGHTS = {
+        "momentum": 0.4,
+        "value": 0.2,
+        "volatility": 0.2,
+        "trend": 0.2,
+    }
+
+    def __init__(self, weights: dict | None = None):
+        w = weights or self.DEFAULT_WEIGHTS
+        total = sum(w.values())
+        self.weights = {k: v / total for k, v in w.items()}  # normalizza a 1
+
+    def score(self, prices: "pd.Series") -> float:
+        """Restituisce uno score combinato in [-1, 1]."""
+        factors = {
+            "momentum": momentum_score(prices),
+            "value": value_score(prices),
+            "volatility": volatility_score(prices),
+            "trend": trend_score(prices),
+        }
+        combined = sum(self.weights[k] * v for k, v in factors.items())
+        return round(float(combined), 4)
+
+    def signal(self, prices: "pd.Series", threshold: float = 0.1) -> str:
+        """BUY / SELL / HOLD basato su threshold."""
+        s = self.score(prices)
+        if s > threshold:
+            return "BUY"
+        elif s < -threshold:
+            return "SELL"
+        return "HOLD"
