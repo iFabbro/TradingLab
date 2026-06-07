@@ -9,6 +9,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from src.backtest import BacktestEngine
+from src.data import load_ohlcv
 from src.optimization import format_optimization_report, optimize_strategy
 from src.strategies import (
     MeanReversionStrategy,
@@ -52,16 +53,29 @@ def main() -> int:
     def engine_factory(cfg: StrategyConfig) -> BacktestEngine:
         return BacktestEngine(cfg)
 
+    prices = load_ohlcv(
+        ticker=args.universe[0],
+        start="2020-01-01",
+        end="2024-12-31",
+        interval="1d",
+    )
+
+    split_idx = max(int(len(prices) * 0.7), 1)
+    train_data = prices.iloc[:split_idx]
+    test_data = prices.iloc[split_idx:]
+
     result = optimize_strategy(
         engine_factory=engine_factory,
         strategy_factory=lambda cfg: build_strategy(cfg, args.strategy),
         base_config=base_config,
-        train_data="train",
-        test_data="test",
+        train_data=train_data,
+        test_data=test_data,
         param_grid={"lookback": [args.lookback - 2, args.lookback - 1, args.lookback, args.lookback + 1]},
     )
 
     print(format_optimization_report(result))
+    if result.best_candidate is None:
+        print("No candidate passed anti-overfitting filters.")
     return 0 if result.best_candidate is not None else 1
 
 
