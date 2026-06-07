@@ -27,7 +27,6 @@ def test_risk_summary_keys():
 def test_empty_returns():
     assert win_rate([]) == 0.0
 
-
 def test_risk_summary_includes_drawdown_metrics():
     summary = risk_summary([0.05, -0.1, 0.03, -0.02, 0.04])
     for k in ["max_drawdown", "avg_drawdown", "max_drawdown_duration", "calmar_ratio", "final_equity"]:
