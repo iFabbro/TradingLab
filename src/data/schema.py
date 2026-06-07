@@ -4,12 +4,12 @@ Colonne richieste, tipi attesi e funzione di validazione.
 """
 import pandas as pd
 
-OHLCV_COLUMNS = ["open", "high", "low", "close", "volume"]
+OHLCV_COLUMNS = ["Open", "High", "Low", "Close", "Volume"]
 
 def normalize(df: pd.DataFrame) -> pd.DataFrame:
-    """Rinomina colonne in lowercase e verifica schema OHLCV."""
     df = df.copy()
-    df.columns = [c.lower() for c in df.columns]
+    rename_map = {c: c.title() for c in df.columns}
+    df = df.rename(columns=rename_map)
     missing = [c for c in OHLCV_COLUMNS if c not in df.columns]
     if missing:
         raise ValueError(f"Colonne mancanti: {missing}")
@@ -17,3 +17,6 @@ def normalize(df: pd.DataFrame) -> pd.DataFrame:
     df.index.name = "date"
     df = df[OHLCV_COLUMNS]
     return df.sort_index()
+
+def normalize_ohlcv(df: pd.DataFrame) -> pd.DataFrame:
+    return normalize(df)
