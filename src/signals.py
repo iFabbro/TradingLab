@@ -5,8 +5,6 @@ from typing import Optional
 
 import pandas as pd
 
-from .regime import detect_regime, suggest_strategy
-
 
 @dataclass(frozen=True)
 class TradeSetup:
@@ -19,6 +17,9 @@ class TradeSetup:
     strategy_tag: str
     regime: str
     note: str
+    status: str = "open"
+    open_date: str = ""
+    position_size: float = 0.0
 
 
 def _atr_like(df: pd.DataFrame, window: int = 14) -> float:
@@ -73,10 +74,8 @@ def generate_setup(
     entry = float(last["close"])
     atr = _atr_like(data, window=atr_window)
 
-    volume = data[volume_col] if volume_col and volume_col in data.columns else None
-    regime_df = detect_regime(data["close"], volume=volume)
-    regime = str(regime_df["regime"].iloc[-1])
-    strategy_tag = suggest_strategy(regime)
+    regime = "unknown"
+    strategy_tag = "discretionary"
 
     if direction == "long":
         stop = entry - stop_atr_mult * atr
@@ -91,7 +90,7 @@ def generate_setup(
         raise ValueError("Risk non valido per generare il setup")
 
     rr = abs(target - entry) / abs(entry - stop)
-    note = f"Regime={regime}; strategia suggerita={strategy_tag}; ATR={atr_window}x{stop_atr_mult}"
+    note = f"ATR={atr_window}x{stop_atr_mult}; volume_col={volume_col}"
 
     return TradeSetup(
         ticker=ticker,
@@ -103,38 +102,7 @@ def generate_setup(
         strategy_tag=strategy_tag,
         regime=regime,
         note=note,
+        status="open",
+        open_date=pd.Timestamp.today().strftime("%Y-%m-%d"),
+        position_size=0.0,
     )
-
-
-def generate_setups(
-    market: str,
-    strategies: list[str],
-    data_live: pd.DataFrame,
-    ticker: str,
-    *,
-    top_n: int = 3,
-) -> list[TradeSetup]:
-    direction = "long" if market.lower() != "bear" else "short"
-    setups: list[TradeSetup] = []
-
-    for strategy in strategies[:top_n]:
-        setup = generate_setup(
-            data_live,
-            ticker=ticker,
-            direction=direction,
-        )
-        setups.append(
-            TradeSetup(
-                ticker=setup.ticker,
-                direction=setup.direction,
-                entry=setup.entry,
-                stop=setup.stop,
-                target=setup.target,
-                risk_reward=setup.risk_reward,
-                strategy_tag=strategy,
-                regime=setup.regime,
-                note=setup.note,
-            )
-        )
-
-    return setups

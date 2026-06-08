@@ -1,0 +1,2 @@
+ticker,direction,entry,stop,target,risk_reward,strategy_tag,regime,note,status,open_date,position_size
+SPY,long,107.8,105.7,111.99999999999999,2.0,discretionary,unknown,ATR=14x1.5; volume_col=volume,open,2026-06-08,0.0
