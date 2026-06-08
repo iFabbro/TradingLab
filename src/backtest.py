@@ -53,6 +53,7 @@ class BacktestEngine:
             current_prices = prices.iloc[: i + 1]
             date = prices.index[i]
             signal = strategy.generate_signals(current_prices).reindex(prices.columns).fillna(0.0)
+            signal = signal.clip(-1.0, 1.0)
 
             if current_position is None:
                 current_position = signal.copy()
@@ -74,7 +75,7 @@ class BacktestEngine:
                             "duration_bars": i,
                         }
                     )
-                    equity = end_value
+                    equity = max(end_value, 1e-9)
                     current_position = signal.copy()
                     entry_date = date
                     entry_value = equity
@@ -94,7 +95,7 @@ class BacktestEngine:
                     "duration_bars": len(prices) - 1,
                 }
             )
-            equity = final_value
+            equity = max(final_value, 1e-9)
             equity_rows[-1]["equity"] = equity
 
         equity_curve = pd.DataFrame(equity_rows).set_index("date")["equity"]
@@ -108,17 +109,19 @@ class BacktestEngine:
         weights = position.astype(float)
         if weights.abs().sum() == 0:
             return capital
-        weights = weights / weights.abs().sum()
+        weights = weights / max(weights.abs().sum(), 1.0)
         rel = last_prices / last_prices.iloc[0]
         gross_return = float((weights * rel).sum() - 1.0)
+        gross_return = float(np.clip(gross_return, -0.95, 10.0))
         cost = self.transaction_cost_bps / 10000.0 * float(weights.abs().sum())
-        return capital * (1.0 + gross_return - cost)
+        return max(capital * (1.0 + gross_return - cost), 1e-9)
 
     def _metrics(self, equity_curve: pd.Series, trade_log: pd.DataFrame) -> dict:
         rets = equity_curve.pct_change().fillna(0.0)
         total_return = equity_curve.iloc[-1] / equity_curve.iloc[0] - 1.0
         n_years = max(len(equity_curve) / 252.0, 1 / 252.0)
-        cagr = (equity_curve.iloc[-1] / equity_curve.iloc[0]) ** (1 / n_years) - 1.0
+        ratio = max(equity_curve.iloc[-1] / equity_curve.iloc[0], 1e-12)
+        cagr = ratio ** (1 / n_years) - 1.0
         sharpe = 0.0 if rets.std(ddof=0) == 0 else np.sqrt(252) * rets.mean() / rets.std(ddof=0)
         running_max = equity_curve.cummax()
         drawdown = equity_curve / running_max - 1.0
