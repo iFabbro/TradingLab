@@ -1,14 +1,23 @@
 # Trading-Lab Roadmap 2.0
 
 ## Obiettivo generale
-Portare Trading-Lab da piattaforma modulare funzionante a sistema operativo personale affidabile, leggibile e utilizzabile ogni giorno come hub di trading e ricerca.
+Portare Trading-Lab da piattaforma modulare funzionante a sistema operativo personale affidabile e, in prospettiva, a motore di trading autonomo capace di monitorare il mercato, generare segnali, validare il rischio ed eseguire ordini in modo controllato.
 
 ## Principio guida
-La priorità non è più solo aggiungere moduli, ma:
+La priorità non è solo aggiungere moduli, ma:
 1. rendere il sistema robusto;
 2. migliorare la qualità dei dati e degli output;
 3. semplificare l’interfaccia operativa;
-4. preparare il progetto a una futura espansione controllata.
+4. separare chiaramente monitoraggio, decisione ed execution;
+5. preparare il progetto a una futura espansione controllata.
+
+## Architettura logica target
+Il sistema finale deve essere composto da 5 layer principali:
+- **Research layer**: generazione strategie, backtest, ottimizzazione.
+- **Decision layer**: segnali, regime detection, portfolio logic.
+- **Risk layer**: sizing, drawdown, Monte Carlo, limiti di esposizione.
+- **Execution layer**: apertura, modifica e chiusura ordini.
+- **Monitor layer**: HUD live, report, alert, stato operativo.
 
 ## Fase A — Stabilizzazione base
 ### Obiettivo
@@ -113,22 +122,46 @@ Rendere il sistema utile anche come strumento di controllo del rischio.
 - Migliore lettura della fragilità strategica.
 - Alert rischio più utili.
 
-## Fase G — Portfolio and regime
+## Fase G — Execution autonoma
 ### Obiettivo
-Collegare il monitor operativo alla logica di allocazione.
+Introdurre un layer separato per generare ed eseguire ordini in autonomia, senza sovrapporlo alla HUD.
+
+### Attività
+- Creare `src/execution.py` per la logica di execution.
+- Creare `scripts/run_bot.py` come entrypoint operativo del motore autonomo.
+- Definire input chiari per:
+  - segnali;
+  - risk check;
+  - position sizing;
+  - ordine di mercato / limit / stop;
+  - conferma esecuzione.
+- Separare la decisione dall’invio ordini.
+- Introdurre logica di retry, fallback e gestione errori.
+- Collegare il layer di execution al rischio e allo stato posizione.
+- Preparare interfacce future per broker/API.
+
+### Output atteso
+- Motore capace di aprire, modificare e chiudere ordini secondo regole predefinite.
+- Log strutturato delle operazioni.
+- HUD che resta solo monitor, non execution.
+
+## Fase H — Portfolio and regime
+### Obiettivo
+Collegare il motore operativo alla logica di allocazione e al contesto di mercato.
 
 ### Attività
 - Raffinare portfolio construction.
 - Collegare il regime macro alle esposizioni.
 - Introdurre logiche più esplicite di allocazione e disallocazione.
 - Rafforzare il legame tra macro regime e setup suggeriti.
+- Integrare la regime awareness nel layer di decisione.
 
 ### Output atteso
 - Sistema più coerente con il contesto di mercato.
 - Minore uso “piatto” delle strategie.
 - Maggiore adattività.
 
-## Fase H — Optimization layer
+## Fase I — Optimization layer
 ### Obiettivo
 Preparare il progetto a ottimizzazioni controllate.
 
@@ -143,7 +176,25 @@ Preparare il progetto a ottimizzazioni controllate.
 - Migliore tracciabilità delle scelte.
 - Processo replicabile.
 
-## Fase I — Future extensions
+## Fase J — Execution safety and supervision
+### Obiettivo
+Assicurare che il motore autonomo operi con vincoli chiari, supervisionabili e interrompibili.
+
+### Attività
+- Introduzione di kill switch.
+- Limiti giornalieri di perdita.
+- Limiti di numero trade.
+- Max exposure per simbolo e per portafoglio.
+- Modalità paper / live / dry-run.
+- Audit log completo delle decisioni.
+- Stato persistente del bot.
+
+### Output atteso
+- Motore autonomo più sicuro.
+- Controllo umano sempre possibile.
+- Migliore governance dell’automazione.
+
+## Fase K — Future extensions
 ### Obiettivo
 Aggiungere funzionalità solo dopo consolidamento.
 
@@ -156,12 +207,15 @@ Aggiungere funzionalità solo dopo consolidamento.
 - analisi multi-timeframe;
 - miglioramenti visuali della HUD;
 - strategia macro più sofisticata;
-- alpha detection più profonda.
+- alpha detection più profonda;
+- execution multi-broker;
+- portfolio automation più avanzata.
 
 ## Priorità di esecuzione
 1. Dashboard 2.0.
 2. Stabilizzazione del data/output layer.
 3. Standardizzazione trade e report.
 4. Miglioramento backtest e risk.
-5. Rafforzamento del layer portfolio/macro.
-6. Estensioni future.
+5. Execution autonoma.
+6. Rafforzamento del layer portfolio/macro.
+7. Safety, supervision e future extensions.
