@@ -17,7 +17,7 @@ from src.strategies import MomentumStrategy, StrategyConfig
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--prices", required=True)
-    parser.add_argument("--output-dir", default="data/backtests")
+    parser.add_argument("--output-dir", default="reports")
     parser.add_argument("--initial-capital", type=float, default=100000.0)
     args = parser.parse_args()
 
