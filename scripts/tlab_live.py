@@ -163,7 +163,7 @@ def draw(stdscr) -> None:
                 3,
                 f"{str(pick(row, 'entry_date')):<12} "
                 f"{str(pick(row, 'exit_date')):<12} "
-                f"{str(pick(row, 'side')):<6} "
+                f"{str(pick(row, 'direction')):<6} "
                 f"{str(pick(row, 'pnl')):>8} "
                 f"{str(pick(row, 'return_pct')):>8} "
                 f"{str(pick(row, 'duration_bars')):>6}",

@@ -7,9 +7,11 @@ import pandas as pd
 
 TRADE_LOG_COLUMNS = [
     "ticker",
+    "strategy_tag",
+    "status",
     "entry_date",
     "exit_date",
-    "side",
+    "direction",
     "pnl",
     "return_pct",
     "duration_bars",
