@@ -211,6 +211,18 @@ Aggiungere funzionalità solo dopo consolidamento.
 - execution multi-broker;
 - portfolio automation più avanzata.
 
+## Stato corrente
+
+La fase 2.0 è stata scomposta in sei blocchi operativi:
+- Stabilization base.
+- Dashboard 2.0.
+- Decision layer.
+- Risk layer.
+- Execution autonoma.
+- Final acceptance checklist.
+
+Le issue GitHub corrispondenti fungono da backlog operativo e verranno chiuse in ordine di dipendenza.
+
 ## Priorità di esecuzione
 1. Dashboard 2.0.
 2. Stabilizzazione del data/output layer.
