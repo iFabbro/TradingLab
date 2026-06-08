@@ -34,6 +34,7 @@ def main() -> None:
     parser.add_argument("--atr-window", type=int, default=14)
     parser.add_argument("--stop-atr-mult", type=float, default=1.5)
     parser.add_argument("--target-rr", type=float, default=2.0)
+    parser.add_argument("--output", default=None, help="CSV dove appendere il setup")
     args = parser.parse_args()
 
     df = _load_csv(args.file)
@@ -55,6 +56,30 @@ def main() -> None:
     print(f"target: {setup.target:.4f}")
     print(f"risk_reward: {setup.risk_reward:.2f}")
     print(f"note: {setup.note}")
+
+    if args.output:
+        out_path = Path(args.output)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        row = {
+            "ticker": setup.ticker,
+            "direction": setup.direction,
+            "entry": setup.entry,
+            "stop": setup.stop,
+            "target": setup.target,
+            "risk_reward": setup.risk_reward,
+            "strategy_tag": setup.strategy_tag,
+            "regime": setup.regime,
+            "note": setup.note,
+            "status": setup.status,
+            "open_date": setup.open_date,
+            "position_size": setup.position_size,
+        }
+        df_row = pd.DataFrame([row])
+        if out_path.exists():
+            df_row.to_csv(out_path, mode="a", header=False, index=False)
+        else:
+            df_row.to_csv(out_path, index=False)
+        print(f"saved_to: {out_path}")
 
 
 if __name__ == "__main__":
