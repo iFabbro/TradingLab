@@ -1,6 +1,7 @@
 import numpy as np
 from typing import Sequence
 
+from src.drawdown import drawdown_summary
 
 def win_rate(returns: Sequence[float]) -> float:
     r = np.asarray(returns, dtype=float)
@@ -49,6 +50,7 @@ def sortino_ratio(returns: Sequence[float], risk_free: float = 0.0) -> float:
 
 
 def risk_summary(returns: Sequence[float], risk_free: float = 0.0) -> dict:
+    dd_summary = drawdown_summary(returns)
     return {
         "n_trades": len(returns),
         "win_rate": win_rate(returns),
@@ -56,4 +58,9 @@ def risk_summary(returns: Sequence[float], risk_free: float = 0.0) -> dict:
         "avg_rr": avg_risk_reward(returns),
         "sharpe": sharpe_ratio(returns, risk_free),
         "sortino": sortino_ratio(returns, risk_free),
+        "max_drawdown": dd_summary["max_drawdown"],
+        "avg_drawdown": dd_summary["avg_drawdown"],
+        "max_drawdown_duration": dd_summary["max_drawdown_duration"],
+        "calmar_ratio": dd_summary["calmar_ratio"],
+        "final_equity": dd_summary["final_equity"],
     }
