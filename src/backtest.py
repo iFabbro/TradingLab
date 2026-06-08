@@ -47,7 +47,7 @@ class BacktestEngine:
                     "status": "closed",
                     "entry_date": prices.index[0],
                     "exit_date": prices.index[-1],
-                    "side": "long",
+                    "direction": "long",
                     "pnl": 0.0,
                     "return_pct": 0.0,
                     "duration_bars": max(len(prices) - 1, 0),
