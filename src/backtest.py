@@ -7,6 +7,12 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 
+from src.output_schema import (
+    ensure_parent_dir,
+    validate_equity_curve,
+    validate_metrics,
+    validate_trade_log,
+)
 from src.strategies import BaseStrategy, StrategyConfig
 
 
@@ -22,7 +28,7 @@ class BacktestEngine:
         self,
         config: StrategyConfig,
         initial_capital: float = 100000.0,
-        output_dir: str | Path = "data/backtests",
+        output_dir: str | Path = "reports",
         transaction_cost_bps: float = 0.0,
     ) -> None:
         self.config = config
@@ -67,6 +73,7 @@ class BacktestEngine:
                     trade_pnl = end_value - entry_value
                     trades.append(
                         {
+                            "ticker": self.config.universe[0] if self.config.universe else "UNKNOWN",
                             "entry_date": entry_date,
                             "exit_date": date,
                             "side": "long" if prev_pos.sum() >= 0 else "short",
@@ -87,6 +94,7 @@ class BacktestEngine:
             trade_pnl = final_value - entry_value
             trades.append(
                 {
+                    "ticker": self.config.universe[0] if self.config.universe else "UNKNOWN",
                     "entry_date": entry_date,
                     "exit_date": prices.index[-1],
                     "side": "long" if current_position.sum() >= 0 else "short",
@@ -137,6 +145,29 @@ class BacktestEngine:
         }
 
     def _save_outputs(self, trade_log: pd.DataFrame, equity_curve: pd.Series, metrics: dict) -> None:
-        trade_log.to_csv(self.output_dir / "trade_log.csv", index=False)
-        equity_curve.rename("equity").to_csv(self.output_dir / "equity_curve.csv")
-        pd.DataFrame([metrics]).to_csv(self.output_dir / "metrics.csv", index=False)
+        trade_log_df = trade_log.copy()
+        if trade_log_df.empty:
+            trade_log_df = pd.DataFrame(columns=[
+                "ticker",
+                "entry_date",
+                "exit_date",
+                "side",
+                "pnl",
+                "return_pct",
+                "duration_bars",
+            ])
+
+        equity_curve_df = equity_curve.rename("equity").rename_axis("date").reset_index()
+        metrics_df = pd.DataFrame([metrics])
+
+        trade_log_df = validate_trade_log(trade_log_df)
+        equity_curve_df = validate_equity_curve(equity_curve_df)
+        metrics_df = validate_metrics(metrics_df)
+
+        trade_log_path = ensure_parent_dir(self.output_dir / "trade_log.csv")
+        equity_curve_path = ensure_parent_dir(self.output_dir / "equity_curve.csv")
+        metrics_path = ensure_parent_dir(self.output_dir / "metrics.csv")
+
+        trade_log_df.to_csv(trade_log_path, index=False)
+        equity_curve_df.to_csv(equity_curve_path, index=False)
+        metrics_df.to_csv(metrics_path, index=False)
