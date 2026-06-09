@@ -100,7 +100,7 @@ def build_alerts(metrics: dict[str, Any], trades: list[dict[str, Any]]) -> list[
 
 def draw(stdscr) -> None:
     metrics = first_row(load_csv(DATA_DIR / "metrics.csv"))
-    trades = load_csv(DATA_DIR / "trade_log.csv")
+    trades = load_csv(DATA_DIR / "backtests" / "trade_log.csv")
     macro = last_row(load_csv(DATA_DIR / "macro_snapshot.csv"))
     alerts = build_alerts(metrics, trades)
     recent = trades[-MAX_RECENT_TRADES:]
