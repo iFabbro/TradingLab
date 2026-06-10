@@ -63,15 +63,15 @@ def main() -> None:
         row = {
             "ticker": setup.ticker,
             "direction": setup.direction,
-            "entry": setup.entry,
-            "stop": setup.stop,
-            "target": setup.target,
+            "entry_price": setup.entry,
+            "stop_price": setup.stop,
+            "target_price": setup.target,
             "risk_reward": setup.risk_reward,
             "strategy_tag": setup.strategy_tag,
             "regime": setup.regime,
             "note": setup.note,
             "status": setup.status,
-            "open_date": setup.open_date,
+            "entry_date": setup.open_date,
             "position_size": setup.position_size,
         }
         df_row = pd.DataFrame([row])
