@@ -5,16 +5,23 @@ from pathlib import Path
 import pandas as pd
 
 
+COMMON_TRADE_COLUMNS = [
+    "ticker",
+    "strategy_tag",
+    "status",
+    "side",
+]
+
 TRADE_LOG_COLUMNS = [
     "ticker",
     "strategy_tag",
     "status",
     "entry_date",
     "exit_date",
-    "direction",
+    "side",
     "pnl",
     "return_pct",
-    "duration_bars",
+    "bars",
 ]
 
 EQUITY_CURVE_COLUMNS = [
