@@ -158,6 +158,60 @@ def build_alerts(
     return alerts[:MAX_ALERTS]
 
 
+
+def build_symbol_summary(open_trades, price_map):
+    grouped = {}
+
+    for r in open_trades:
+        symbol = (
+            pick(r, "ticker")
+            or pick(r, "symbol")
+            or pick(r, "underlying")
+            or pick(r, "asset")
+            or pick(r, "instrument")
+            or pick(r, "pair")
+            or "n/a"
+        )
+        symbol = str(symbol).strip() or "n/a"
+        direction = str(pick(r, "direction", default="")).lower()
+        qty = pick(r, "qty", pick(r, "quantity", 1))
+        entry = pick(r, "entry", pick(r, "entry_price", 0))
+        curr = price_map.get(symbol, entry)
+
+        try:
+            qty = float(qty or 0)
+        except Exception:
+            qty = 0.0
+
+        try:
+            entry = float(entry or 0)
+        except Exception:
+            entry = 0.0
+
+        try:
+            curr = float(curr or 0)
+        except Exception:
+            curr = entry
+
+        side = 1.0 if direction == "long" else -1.0
+        upnl_pct = ((curr - entry) / entry * 100.0 * side) if entry else 0.0
+
+        bucket = grouped.setdefault(symbol, {"count": 0, "sum_upnl": 0.0, "long": 0, "short": 0})
+        bucket["count"] += 1
+        bucket["sum_upnl"] += upnl_pct
+        if direction == "long":
+            bucket["long"] += 1
+        elif direction == "short":
+            bucket["short"] += 1
+
+    out = []
+    for symbol, v in grouped.items():
+        bias = "L" if v["long"] >= v["short"] else "S"
+        avg_upnl = (v["sum_upnl"] / v["count"]) if v["count"] else 0.0
+        out.append(f"{symbol} x{v['count']} {bias} avgUPNL {avg_upnl:+.1f}%")
+
+    return out
+
 def draw(stdscr) -> None:
     metrics = first_row(load_csv(DATA_DIR / "metrics.csv"))
     trades = load_csv(LIVE_DATA_DIR / "backtests" / "trade_log.csv")
@@ -172,6 +226,7 @@ def draw(stdscr) -> None:
     open_count = len(open_trades)
     long_count = sum(1 for r in open_trades if str(pick(r, "direction", default="")).lower() == "long")
     short_count = sum(1 for r in open_trades if str(pick(r, "direction", default="")).lower() == "short")
+    symbol_summary = build_symbol_summary(open_trades, price_map)
 
     stdscr.erase()
     h, w = stdscr.getmaxyx()
@@ -221,7 +276,8 @@ def draw(stdscr) -> None:
 
     y = 17
     draw_box(stdscr, y, 1, full_w, 6, "OPEN TRADES")
-    safe_add(stdscr, y + 1, 3, f"open {open_count}   long {long_count}   short {short_count}")
+    summary_text = " | ".join(symbol_summary[:1]) if symbol_summary else "n/a"
+    safe_add(stdscr, y + 1, 3, f"open {open_count}   long {long_count}   short {short_count}   {summary_text}")
     safe_add(stdscr, y + 2, 3, f"{'TICKER':<6} {'DIR':<5} {'ENTRY':>8} {'CURR':>8} {'UPNL%':>7} {'STOP%':>7}", curses.A_UNDERLINE)
 
     if open_recent:
