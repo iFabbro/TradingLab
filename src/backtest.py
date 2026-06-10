@@ -49,10 +49,10 @@ class BacktestEngine:
                     "entry_price": float(prices["close"].iloc[0]),
                     "exit_date": prices.index[-1],
                     "exit_price": float(prices["close"].iloc[-1]),
-                    "direction": "long",
+                    "side": "long",
                     "pnl": 0.0,
                     "return_pct": 0.0,
-                    "duration_bars": max(len(prices) - 1, 0),
+                    "bars": max(len(prices) - 1, 0),
                 }
             ]
         )
@@ -68,7 +68,9 @@ class BacktestEngine:
         win_rate = float((trade_log["pnl"] > 0).mean()) if not trade_log.empty else 0.0
         return {
             "total_return": float(total_return),
+            "cagr": 0.0,
             "sharpe": float(sharpe),
+            "max_drawdown": 0.0,
             "win_rate": win_rate,
             "n_trades": int(len(trade_log)),
         }

@@ -141,7 +141,7 @@ def build_alerts(
     for row in open_trades[:MAX_ALERTS]:
         try:
             ticker = str(pick(row, "ticker", default="n/a")).upper()
-            direction = str(pick(row, "direction", default="n/a")).lower()
+            direction = str(pick(row, "side", "direction", default="n/a")).lower()
             stop = ffloat(pick(row, "stop_price"))
             price_row = price_map.get(ticker, {})
             current = ffloat(pick(price_row, "current_price"))
@@ -173,7 +173,7 @@ def build_symbol_summary(open_trades, price_map):
             or "n/a"
         )
         symbol = str(symbol).strip() or "n/a"
-        direction = str(pick(r, "direction", default="")).lower()
+        direction = str(pick(r, "side", "direction", default="")).lower()
         qty = pick(r, "qty", pick(r, "quantity", 1))
         entry = pick(r, "entry", pick(r, "entry_price", 0))
         curr = price_map.get(symbol, entry)
@@ -224,8 +224,8 @@ def draw(stdscr) -> None:
     open_recent = open_trades[:2]
 
     open_count = len(open_trades)
-    long_count = sum(1 for r in open_trades if str(pick(r, "direction", default="")).lower() == "long")
-    short_count = sum(1 for r in open_trades if str(pick(r, "direction", default="")).lower() == "short")
+    long_count = sum(1 for r in open_trades if str(pick(r, "side", "direction", default="")).lower() == "long")
+    short_count = sum(1 for r in open_trades if str(pick(r, "side", "direction", default="")).lower() == "short")
     symbol_summary = build_symbol_summary(open_trades, price_map)
 
     stdscr.erase()
@@ -283,7 +283,7 @@ def draw(stdscr) -> None:
     if open_recent:
         for i, row in enumerate(open_recent[:1]):
             ticker = str(pick(row, 'ticker')).upper()
-            direction = str(pick(row, 'direction')).lower()
+            direction = str(pick(row, 'side', 'direction')).lower()
             entry = ffloat(pick(row, 'entry_price'))
             stop = ffloat(pick(row, 'stop_price'))
             price_row = price_map.get(ticker, {})
@@ -325,10 +325,10 @@ def draw(stdscr) -> None:
                 3,
                 f"{str(pick(row, 'entry_date')):<12} "
                 f"{str(pick(row, 'exit_date')):<12} "
-                f"{str(pick(row, 'direction')):<6} "
+                f"{str(pick(row, 'side', 'direction')):<6} "
                 f"{str(pick(row, 'pnl')):>8} "
                 f"{str(pick(row, 'return_pct')):>8} "
-                f"{str(pick(row, 'duration_bars')):>6}",
+                f"{str(pick(row, 'bars', 'duration_bars')):>6}",
             )
     else:
         safe_add(stdscr, y + 2, 3, "No trades available.", curses.A_DIM)

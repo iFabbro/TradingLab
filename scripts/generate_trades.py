@@ -48,7 +48,7 @@ def main() -> None:
     )
 
     print(f"ticker: {setup.ticker}")
-    print(f"direction: {setup.direction}")
+    print(f"side: {setup.direction}")
     print(f"regime: {setup.regime}")
     print(f"strategy_tag: {setup.strategy_tag}")
     print(f"entry: {setup.entry:.4f}")
@@ -62,7 +62,7 @@ def main() -> None:
         out_path.parent.mkdir(parents=True, exist_ok=True)
         row = {
             "ticker": setup.ticker,
-            "direction": setup.direction,
+            "side": setup.direction,
             "entry_price": setup.entry,
             "stop_price": setup.stop,
             "target_price": setup.target,
