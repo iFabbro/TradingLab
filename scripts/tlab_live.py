@@ -9,6 +9,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT / "reports"
+LIVE_DATA_DIR = ROOT / "data"
 
 REFRESH_SECONDS = 3
 MAX_RECENT_TRADES = 4
@@ -79,7 +80,7 @@ def draw_box(stdscr, y: int, x: int, w: int, h: int, title: str) -> None:
         safe_add(stdscr, y, x + 2, label, curses.A_BOLD)
 
 
-def build_alerts(metrics: dict[str, Any], trades: list[dict[str, Any]]) -> list[str]:
+def build_alerts(metrics: dict[str, Any], trades: list[dict[str, Any]], open_trades: list[dict[str, Any]]) -> list[str]:
     alerts = []
     try:
         if float(pick(metrics, "sharpe", default="0")) <= 0:
@@ -93,6 +94,25 @@ def build_alerts(metrics: dict[str, Any], trades: list[dict[str, Any]]) -> list[
         pass
     if not trades:
         alerts.append("Trade log empty")
+    if not open_trades:
+        alerts.append("Open trades empty")
+    for row in open_trades[:MAX_ALERTS]:
+        try:
+            entry = float(pick(row, "entry_price", default="nan"))
+            stop = float(pick(row, "stop_price", default="nan"))
+            direction = str(pick(row, "direction", default="n/a")).lower()
+            ticker = str(pick(row, "ticker", default="n/a"))
+            if entry > 0:
+                if direction == "long":
+                    dist = (entry - stop) / entry
+                elif direction == "short":
+                    dist = (stop - entry) / entry
+                else:
+                    dist = 9.0
+                if dist <= 0.02:
+                    alerts.append(f"Stop near: {ticker} {dist*100:.1f}%")
+        except Exception:
+            pass
     if not alerts:
         alerts.append("No active warnings")
     return alerts[:MAX_ALERTS]
@@ -100,10 +120,16 @@ def build_alerts(metrics: dict[str, Any], trades: list[dict[str, Any]]) -> list[
 
 def draw(stdscr) -> None:
     metrics = first_row(load_csv(DATA_DIR / "metrics.csv"))
-    trades = load_csv(DATA_DIR / "backtests" / "trade_log.csv")
+    trades = load_csv(LIVE_DATA_DIR / "backtests" / "trade_log.csv")
+    open_trades = load_csv(LIVE_DATA_DIR / "trades" / "open_trades.csv")
     macro = last_row(load_csv(DATA_DIR / "macro_snapshot.csv"))
-    alerts = build_alerts(metrics, trades)
+    alerts = build_alerts(metrics, trades, open_trades)
     recent = trades[-MAX_RECENT_TRADES:]
+    open_recent = open_trades[:2]
+
+    open_count = len(open_trades)
+    long_count = sum(1 for r in open_trades if str(pick(r, "direction", default="")).lower() == "long")
+    short_count = sum(1 for r in open_trades if str(pick(r, "direction", default="")).lower() == "short")
 
     stdscr.erase()
     h, w = stdscr.getmaxyx()
@@ -152,6 +178,27 @@ def draw(stdscr) -> None:
     )
 
     y = 17
+    draw_box(stdscr, y, 1, full_w, 5, "OPEN TRADES")
+    safe_add(stdscr, y + 1, 3, f"open {open_count}   long {long_count}   short {short_count}")
+    safe_add(stdscr, y + 2, 3, f"{'TICKER':<8} {'DIR':<6} {'ENTRY':>8} {'STOP':>8} {'TARGET':>8} {'DATE':<12}", curses.A_UNDERLINE)
+
+    if open_recent:
+        for i, row in enumerate(open_recent[:1]):
+            safe_add(
+                stdscr,
+                y + 3 + i,
+                3,
+                f"{str(pick(row, 'ticker')):<8} "
+                f"{str(pick(row, 'direction')):<6} "
+                f"{fnum(pick(row, 'entry_price')):>8} "
+                f"{fnum(pick(row, 'stop_price')):>8} "
+                f"{fnum(pick(row, 'target_price')):>8} "
+                f"{str(pick(row, 'entry_date')):<12}",
+            )
+    else:
+        safe_add(stdscr, y + 3, 3, "No open trades available.", curses.A_DIM)
+
+    y = 23
     draw_box(stdscr, y, 1, full_w, 5, "TRADE LOG")
     safe_add(stdscr, y + 1, 3, f"{'ENTRY':<12} {'EXIT':<12} {'SIDE':<6} {'PNL':>8} {'RET%':>8} {'BARS':>6}", curses.A_UNDERLINE)
 
