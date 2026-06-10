@@ -48,6 +48,42 @@ def fnum(value: Any, digits: int = 2) -> str:
         return "n/a"
 
 
+def ffloat(value: Any) -> float | None:
+    try:
+        return float(value)
+    except Exception:
+        return None
+
+
+def build_price_map(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    out: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        ticker = str(pick(row, "ticker", default="")).strip().upper()
+        if ticker:
+            out[ticker] = row
+    return out
+
+
+def calc_unrealized_pct(direction: str, entry: float, current: float) -> float | None:
+    if entry <= 0:
+        return None
+    if direction == "long":
+        return ((current - entry) / entry) * 100.0
+    if direction == "short":
+        return ((entry - current) / entry) * 100.0
+    return None
+
+
+def calc_stop_distance_pct(direction: str, current: float, stop: float) -> float | None:
+    if current <= 0:
+        return None
+    if direction == "long":
+        return ((current - stop) / current) * 100.0
+    if direction == "short":
+        return ((stop - current) / current) * 100.0
+    return None
+
+
 def safe_add(stdscr, y: int, x: int, text: str, attr: int = 0) -> None:
     h, w = stdscr.getmaxyx()
     if y < 0 or y >= h or x >= w:
@@ -80,7 +116,12 @@ def draw_box(stdscr, y: int, x: int, w: int, h: int, title: str) -> None:
         safe_add(stdscr, y, x + 2, label, curses.A_BOLD)
 
 
-def build_alerts(metrics: dict[str, Any], trades: list[dict[str, Any]], open_trades: list[dict[str, Any]]) -> list[str]:
+def build_alerts(
+    metrics: dict[str, Any],
+    trades: list[dict[str, Any]],
+    open_trades: list[dict[str, Any]],
+    price_map: dict[str, dict[str, Any]],
+) -> list[str]:
     alerts = []
     try:
         if float(pick(metrics, "sharpe", default="0")) <= 0:
@@ -96,23 +137,22 @@ def build_alerts(metrics: dict[str, Any], trades: list[dict[str, Any]], open_tra
         alerts.append("Trade log empty")
     if not open_trades:
         alerts.append("Open trades empty")
+
     for row in open_trades[:MAX_ALERTS]:
         try:
-            entry = float(pick(row, "entry_price", default="nan"))
-            stop = float(pick(row, "stop_price", default="nan"))
+            ticker = str(pick(row, "ticker", default="n/a")).upper()
             direction = str(pick(row, "direction", default="n/a")).lower()
-            ticker = str(pick(row, "ticker", default="n/a"))
-            if entry > 0:
-                if direction == "long":
-                    dist = (entry - stop) / entry
-                elif direction == "short":
-                    dist = (stop - entry) / entry
-                else:
-                    dist = 9.0
-                if dist <= 0.02:
-                    alerts.append(f"Stop near: {ticker} {dist*100:.1f}%")
+            stop = ffloat(pick(row, "stop_price"))
+            price_row = price_map.get(ticker, {})
+            current = ffloat(pick(price_row, "current_price"))
+            if stop is None or current is None:
+                continue
+            dist = calc_stop_distance_pct(direction, current, stop)
+            if dist is not None and dist <= 2.0:
+                alerts.append(f"Stop near: {ticker} {dist:.1f}%")
         except Exception:
             pass
+
     if not alerts:
         alerts.append("No active warnings")
     return alerts[:MAX_ALERTS]
@@ -122,8 +162,10 @@ def draw(stdscr) -> None:
     metrics = first_row(load_csv(DATA_DIR / "metrics.csv"))
     trades = load_csv(LIVE_DATA_DIR / "backtests" / "trade_log.csv")
     open_trades = load_csv(LIVE_DATA_DIR / "trades" / "open_trades.csv")
+    current_prices = load_csv(LIVE_DATA_DIR / "live" / "current_prices.csv")
+    price_map = build_price_map(current_prices)
     macro = last_row(load_csv(DATA_DIR / "macro_snapshot.csv"))
-    alerts = build_alerts(metrics, trades, open_trades)
+    alerts = build_alerts(metrics, trades, open_trades, price_map)
     recent = trades[-MAX_RECENT_TRADES:]
     open_recent = open_trades[:2]
 
@@ -178,27 +220,44 @@ def draw(stdscr) -> None:
     )
 
     y = 17
-    draw_box(stdscr, y, 1, full_w, 5, "OPEN TRADES")
+    draw_box(stdscr, y, 1, full_w, 6, "OPEN TRADES")
     safe_add(stdscr, y + 1, 3, f"open {open_count}   long {long_count}   short {short_count}")
-    safe_add(stdscr, y + 2, 3, f"{'TICKER':<8} {'DIR':<6} {'ENTRY':>8} {'STOP':>8} {'TARGET':>8} {'DATE':<12}", curses.A_UNDERLINE)
+    safe_add(stdscr, y + 2, 3, f"{'TICKER':<6} {'DIR':<5} {'ENTRY':>8} {'CURR':>8} {'UPNL%':>7} {'STOP%':>7}", curses.A_UNDERLINE)
 
     if open_recent:
         for i, row in enumerate(open_recent[:1]):
+            ticker = str(pick(row, 'ticker')).upper()
+            direction = str(pick(row, 'direction')).lower()
+            entry = ffloat(pick(row, 'entry_price'))
+            stop = ffloat(pick(row, 'stop_price'))
+            price_row = price_map.get(ticker, {})
+            current = ffloat(pick(price_row, 'current_price'))
+
+            upnl = calc_unrealized_pct(direction, entry, current) if entry is not None and current is not None else None
+            stop_dist = calc_stop_distance_pct(direction, current, stop) if stop is not None and current is not None else None
+
             safe_add(
                 stdscr,
                 y + 3 + i,
                 3,
-                f"{str(pick(row, 'ticker')):<8} "
-                f"{str(pick(row, 'direction')):<6} "
-                f"{fnum(pick(row, 'entry_price')):>8} "
-                f"{fnum(pick(row, 'stop_price')):>8} "
-                f"{fnum(pick(row, 'target_price')):>8} "
-                f"{str(pick(row, 'entry_date')):<12}",
+                f"{ticker:<6} "
+                f"{direction:<5} "
+                f"{fnum(entry):>8} "
+                f"{fnum(current):>8} "
+                f"{fnum(upnl):>7} "
+                f"{fnum(stop_dist):>7}",
+            )
+            safe_add(
+                stdscr,
+                y + 4 + i,
+                3,
+                f"stop {fnum(stop)}   target {fnum(pick(row, 'target_price'))}   asof {str(pick(price_row, 'asof'))[:19]}",
+                curses.A_DIM,
             )
     else:
         safe_add(stdscr, y + 3, 3, "No open trades available.", curses.A_DIM)
 
-    y = 23
+    y = 24
     draw_box(stdscr, y, 1, full_w, 5, "TRADE LOG")
     safe_add(stdscr, y + 1, 3, f"{'ENTRY':<12} {'EXIT':<12} {'SIDE':<6} {'PNL':>8} {'RET%':>8} {'BARS':>6}", curses.A_UNDERLINE)
 
