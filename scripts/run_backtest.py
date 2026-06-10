@@ -11,6 +11,7 @@ if str(ROOT) not in sys.path:
 import pandas as pd
 
 from src.backtest import BacktestEngine
+from src.output_schema import validate_equity_curve, validate_metrics, validate_trade_log
 from src.strategies import MomentumStrategy, StrategyConfig
 
 
@@ -22,10 +23,25 @@ def main() -> None:
     args = parser.parse_args()
 
     prices = pd.read_csv(args.prices, index_col=0, parse_dates=True)
-    config = StrategyConfig(name="momentum", universe=list(prices.columns), lookback=min(20, len(prices)))
+    if "close" not in prices.columns:
+        first_col = prices.columns[0]
+        ticker = first_col
+        prices = prices[[first_col]].rename(columns={first_col: "close"})
+    else:
+        ticker = "close"
+    config = StrategyConfig(name="momentum", universe=["close"], lookback=min(20, len(prices)))
     strategy = MomentumStrategy(config)
-    engine = BacktestEngine(config=config, initial_capital=args.initial_capital, output_dir=args.output_dir)
-    result = engine.run(prices, strategy)
+    engine = BacktestEngine(
+        initial_capital=args.initial_capital,
+        output_dir=args.output_dir,
+        strategy_tag="momentum",
+        ticker=ticker,
+    )
+    result = engine.run(prices)
+
+    validate_trade_log(pd.read_csv(Path(args.output_dir) / "trade_log.csv"))
+    validate_metrics(pd.read_csv(Path(args.output_dir) / "metrics.csv"))
+    validate_equity_curve(pd.read_csv(Path(args.output_dir) / "equity_curve.csv"))
 
     print(result.metrics)
     print(result.trade_log.tail())
