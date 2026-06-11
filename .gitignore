@@ -36,3 +36,7 @@ Thumbs.db
 .idea/
 
 reports/*.csv
+
+data/demo/
+reports/minimal_test/
+*.bak
