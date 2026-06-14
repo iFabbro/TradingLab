@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import csv
 import curses
 import time
@@ -10,6 +11,19 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT / "reports"
 LIVE_DATA_DIR = ROOT / "data"
+
+VALID_MODES = ("live", "snapshot", "minimal")
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="TLAB Live HUD")
+    parser.add_argument(
+        "--mode",
+        choices=VALID_MODES,
+        default="live",
+        help="Display mode: live (default), snapshot, minimal",
+    )
+    return parser.parse_args()
 
 REFRESH_SECONDS = 3
 MAX_RECENT_TRADES = 4
@@ -212,7 +226,7 @@ def build_symbol_summary(open_trades, price_map):
 
     return out
 
-def draw(stdscr) -> None:
+def draw(stdscr, mode: str) -> None:
     metrics = first_row(load_csv(DATA_DIR / "metrics.csv"))
     trades = load_csv(LIVE_DATA_DIR / "backtests" / "trade_log.csv")
     open_trades = load_csv(LIVE_DATA_DIR / "trades" / "open_trades.csv")
@@ -231,9 +245,10 @@ def draw(stdscr) -> None:
     stdscr.erase()
     h, w = stdscr.getmaxyx()
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    refresh_label = "static" if mode == "snapshot" else f"{REFRESH_SECONDS}s"
 
     safe_add(stdscr, 0, 1, "TLAB LIVE HUD", curses.A_BOLD)
-    safe_add(stdscr, 1, 1, f"{now}   refresh {REFRESH_SECONDS}s", curses.A_DIM)
+    safe_add(stdscr, 1, 1, f"{now}   refresh {refresh_label}", curses.A_DIM)
     hline(stdscr, 2, 1, max(10, w - 2))
 
     full_w = max(40, w - 2)
@@ -242,7 +257,7 @@ def draw(stdscr) -> None:
 
     y = 3
     draw_box(stdscr, y, 1, full_w, 3, "SYSTEM")
-    safe_add(stdscr, y + 1, 3, f"mode monitor   status snapshot   heartbeat {now}")
+    safe_add(stdscr, y + 1, 3, f"mode {mode:<8} status running    heartbeat {now}")
 
     y = 7
     draw_box(stdscr, y, 1, full_w, 4, "KPI")
@@ -313,42 +328,56 @@ def draw(stdscr) -> None:
     else:
         safe_add(stdscr, y + 3, 3, "No open trades available.", curses.A_DIM)
 
-    y = 24
-    draw_box(stdscr, y, 1, full_w, 5, "TRADE LOG")
-    safe_add(stdscr, y + 1, 3, f"{'ENTRY':<12} {'EXIT':<12} {'SIDE':<6} {'PNL':>8} {'RET%':>8} {'BARS':>6}", curses.A_UNDERLINE)
+    footer_y = 24
 
-    if recent:
-        for i, row in enumerate(recent[:2]):
-            safe_add(
-                stdscr,
-                y + 2 + i,
-                3,
-                f"{str(pick(row, 'entry_date')):<12} "
-                f"{str(pick(row, 'exit_date')):<12} "
-                f"{str(pick(row, 'side', 'direction')):<6} "
-                f"{str(pick(row, 'pnl')):>8} "
-                f"{str(pick(row, 'return_pct')):>8} "
-                f"{str(pick(row, 'bars', 'duration_bars')):>6}",
-            )
-    else:
-        safe_add(stdscr, y + 2, 3, "No trades available.", curses.A_DIM)
+    if mode != "minimal":
+        y = 24
+        draw_box(stdscr, y, 1, full_w, 5, "TRADE LOG")
+        safe_add(stdscr, y + 1, 3, f"{'ENTRY':<12} {'EXIT':<12} {'SIDE':<6} {'PNL':>8} {'RET%':>8} {'BARS':>6}", curses.A_UNDERLINE)
 
-    safe_add(stdscr, min(h - 1, y + 6), 1, "[q] quit", curses.A_DIM)
+        if recent:
+            for i, row in enumerate(recent[:2]):
+                safe_add(
+                    stdscr,
+                    y + 2 + i,
+                    3,
+                    f"{str(pick(row, 'entry_date')):<12} "
+                    f"{str(pick(row, 'exit_date')):<12} "
+                    f"{str(pick(row, 'side', 'direction')):<6} "
+                    f"{str(pick(row, 'pnl')):>8} "
+                    f"{str(pick(row, 'return_pct')):>8} "
+                    f"{str(pick(row, 'bars', 'duration_bars')):>6}",
+                )
+        else:
+            safe_add(stdscr, y + 2, 3, "No trades available.", curses.A_DIM)
+
+        footer_y = y + 6
+
+    safe_add(stdscr, min(h - 1, footer_y), 1, "[q] quit", curses.A_DIM)
     stdscr.refresh()
 
 
 def main(stdscr) -> None:
     curses.curs_set(0)
-    stdscr.nodelay(True)
 
-    while True:
-        draw(stdscr)
-        for _ in range(REFRESH_SECONDS * 10):
+    if args.mode == "snapshot":
+        stdscr.nodelay(False)
+        draw(stdscr, args.mode)
+        while True:
             ch = stdscr.getch()
             if ch in (ord("q"), ord("Q")):
                 return
-            time.sleep(0.1)
+    else:
+        stdscr.nodelay(True)
+        while True:
+            draw(stdscr, args.mode)
+            for _ in range(REFRESH_SECONDS * 10):
+                ch = stdscr.getch()
+                if ch in (ord("q"), ord("Q")):
+                    return
+                time.sleep(0.1)
 
 
 if __name__ == "__main__":
+    args = parse_args()
     curses.wrapper(main)
