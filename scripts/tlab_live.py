@@ -153,6 +153,22 @@ def draw_macro_panel(stdscr, y: int, x: int, w: int, macro: dict[str, Any]) -> N
     )
 
 
+def draw_kpi_panel(stdscr, y: int, w: int, metrics: dict[str, Any]) -> None:
+    draw_box(stdscr, y, 1, w, 4, "KPI")
+    safe_add(
+        stdscr,
+        y + 1,
+        3,
+        f"trades   {pick(metrics, 'n_trades'):<8}   return   {fnum(pick(metrics, 'total_return')):<8}   cagr   {fnum(pick(metrics, 'cagr'))}",
+    )
+    safe_add(
+        stdscr,
+        y + 2,
+        3,
+        f"sharpe   {fnum(pick(metrics, 'sharpe')):<8}   dd       {fnum(pick(metrics, 'max_drawdown')):<8}   win    {fnum(pick(metrics, 'win_rate'))}",
+    )
+
+
 def build_alerts(
     metrics: dict[str, Any],
     trades: list[dict[str, Any]],
@@ -282,19 +298,7 @@ def draw(stdscr, mode: str) -> None:
     draw_system_panel(stdscr, y, full_w, mode, now)
 
     y = 7
-    draw_box(stdscr, y, 1, full_w, 4, "KPI")
-    safe_add(
-        stdscr,
-        y + 1,
-        3,
-        f"trades   {pick(metrics, 'n_trades'):<8}   return   {fnum(pick(metrics, 'total_return')):<8}   cagr   {fnum(pick(metrics, 'cagr'))}",
-    )
-    safe_add(
-        stdscr,
-        y + 2,
-        3,
-        f"sharpe   {fnum(pick(metrics, 'sharpe')):<8}   dd       {fnum(pick(metrics, 'max_drawdown')):<8}   win    {fnum(pick(metrics, 'win_rate'))}",
-    )
+    draw_kpi_panel(stdscr, y, full_w, metrics)
 
     y = 12
     alerts_h = 4 if mode == "minimal" else 5
