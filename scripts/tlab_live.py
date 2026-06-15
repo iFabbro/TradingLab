@@ -130,6 +130,11 @@ def draw_box(stdscr, y: int, x: int, w: int, h: int, title: str) -> None:
         safe_add(stdscr, y, x + 2, label, curses.A_BOLD)
 
 
+def draw_system_panel(stdscr, y: int, w: int, mode: str, now: str) -> None:
+    draw_box(stdscr, y, 1, w, 3, "SYSTEM")
+    safe_add(stdscr, y + 1, 3, f"mode {mode:<8} status running    heartbeat {now}")
+
+
 def build_alerts(
     metrics: dict[str, Any],
     trades: list[dict[str, Any]],
@@ -256,8 +261,7 @@ def draw(stdscr, mode: str) -> None:
     right_w = max(24, w - left_w - 3)
 
     y = 3
-    draw_box(stdscr, y, 1, full_w, 3, "SYSTEM")
-    safe_add(stdscr, y + 1, 3, f"mode {mode:<8} status running    heartbeat {now}")
+    draw_system_panel(stdscr, y, full_w, mode, now)
 
     y = 7
     draw_box(stdscr, y, 1, full_w, 4, "KPI")
