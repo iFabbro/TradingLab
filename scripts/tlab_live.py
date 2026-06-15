@@ -169,6 +169,65 @@ def draw_kpi_panel(stdscr, y: int, w: int, metrics: dict[str, Any]) -> None:
     )
 
 
+def draw_open_trades_panel(
+    stdscr,
+    y: int,
+    w: int,
+    mode: str,
+    symbol_summary: list[str],
+    open_count: int,
+    long_count: int,
+    short_count: int,
+    open_recent: list[dict[str, Any]],
+    price_map: dict[str, dict[str, Any]],
+) -> None:
+    draw_box(stdscr, y, 1, w, 6, "OPEN TRADES")
+    summary_text = " | ".join(symbol_summary[:1]) if symbol_summary else "n/a"
+    safe_add(stdscr, y + 1, 3, f"open {open_count}   long {long_count}   short {short_count}   {summary_text}")
+
+    if open_recent:
+        for i, row in enumerate(open_recent[:1]):
+            ticker = str(pick(row, 'ticker')).upper()
+            direction = str(pick(row, 'side', 'direction')).lower()
+            entry = ffloat(pick(row, 'entry_price'))
+            stop = ffloat(pick(row, 'stop_price'))
+            price_row = price_map.get(ticker, {})
+            current = ffloat(pick(price_row, 'current_price'))
+
+            upnl = calc_unrealized_pct(direction, entry, current) if entry is not None and current is not None else None
+            stop_dist = calc_stop_distance_pct(direction, current, stop) if stop is not None and current is not None else None
+
+            if mode == "minimal":
+                safe_add(
+                    stdscr,
+                    y + 2 + i,
+                    3,
+                    f"{ticker} {direction}  entry {fnum(entry)}  curr {fnum(current)}  upnl {fnum(upnl)}  stop {fnum(stop_dist)}",
+                )
+            else:
+                safe_add(stdscr, y + 2, 3, f"{'TICKER':<6} {'DIR':<5} {'ENTRY':>8} {'CURR':>8} {'UPNL%':>7} {'STOP%':>7}", curses.A_UNDERLINE)
+                safe_add(
+                    stdscr,
+                    y + 3 + i,
+                    3,
+                    f"{ticker:<6} "
+                    f"{direction:<5} "
+                    f"{fnum(entry):>8} "
+                    f"{fnum(current):>8} "
+                    f"{fnum(upnl):>7} "
+                    f"{fnum(stop_dist):>7}",
+                )
+                safe_add(
+                    stdscr,
+                    y + 4 + i,
+                    3,
+                    f"stop {fnum(stop)}   target {fnum(pick(row, 'target_price'))}   asof {str(pick(price_row, 'asof'))[:19]}",
+                    curses.A_DIM,
+                )
+    else:
+        safe_add(stdscr, y + 3, 3, "No open trades available.", curses.A_DIM)
+
+
 def build_alerts(
     metrics: dict[str, Any],
     trades: list[dict[str, Any]],
@@ -307,51 +366,18 @@ def draw(stdscr, mode: str) -> None:
     draw_macro_panel(stdscr, y, left_w + 2, right_w, macro)
 
     y = 18
-    draw_box(stdscr, y, 1, full_w, 6, "OPEN TRADES")
-    summary_text = " | ".join(symbol_summary[:1]) if symbol_summary else "n/a"
-    safe_add(stdscr, y + 1, 3, f"open {open_count}   long {long_count}   short {short_count}   {summary_text}")
-
-    if open_recent:
-        for i, row in enumerate(open_recent[:1]):
-            ticker = str(pick(row, 'ticker')).upper()
-            direction = str(pick(row, 'side', 'direction')).lower()
-            entry = ffloat(pick(row, 'entry_price'))
-            stop = ffloat(pick(row, 'stop_price'))
-            price_row = price_map.get(ticker, {})
-            current = ffloat(pick(price_row, 'current_price'))
-
-            upnl = calc_unrealized_pct(direction, entry, current) if entry is not None and current is not None else None
-            stop_dist = calc_stop_distance_pct(direction, current, stop) if stop is not None and current is not None else None
-
-            if mode == "minimal":
-                safe_add(
-                    stdscr,
-                    y + 2 + i,
-                    3,
-                    f"{ticker} {direction}  entry {fnum(entry)}  curr {fnum(current)}  upnl {fnum(upnl)}  stop {fnum(stop_dist)}",
-                )
-            else:
-                safe_add(stdscr, y + 2, 3, f"{'TICKER':<6} {'DIR':<5} {'ENTRY':>8} {'CURR':>8} {'UPNL%':>7} {'STOP%':>7}", curses.A_UNDERLINE)
-                safe_add(
-                    stdscr,
-                    y + 3 + i,
-                    3,
-                    f"{ticker:<6} "
-                    f"{direction:<5} "
-                    f"{fnum(entry):>8} "
-                    f"{fnum(current):>8} "
-                    f"{fnum(upnl):>7} "
-                    f"{fnum(stop_dist):>7}",
-                )
-                safe_add(
-                    stdscr,
-                    y + 4 + i,
-                    3,
-                    f"stop {fnum(stop)}   target {fnum(pick(row, 'target_price'))}   asof {str(pick(price_row, 'asof'))[:19]}",
-                    curses.A_DIM,
-                )
-    else:
-        safe_add(stdscr, y + 3, 3, "No open trades available.", curses.A_DIM)
+    draw_open_trades_panel(
+        stdscr,
+        y,
+        full_w,
+        mode,
+        symbol_summary,
+        open_count,
+        long_count,
+        short_count,
+        open_recent,
+        price_map,
+    )
 
     footer_y = 24
 
