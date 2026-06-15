@@ -275,8 +275,9 @@ def draw(stdscr, mode: str) -> None:
     )
 
     y = 12
-    draw_box(stdscr, y, 1, left_w, 4, "ALERTS")
-    for i, alert in enumerate(alerts[:2]):
+    alerts_h = 4 if mode == "minimal" else 5
+    draw_box(stdscr, y, 1, left_w, alerts_h, "ALERTS")
+    for i, alert in enumerate(alerts[: (2 if mode == "minimal" else 3)]):
         attr = curses.A_DIM if alert == "No active warnings" else curses.A_BOLD
         safe_add(stdscr, y + 1 + i, 3, f"! {alert}", attr)
 
@@ -289,7 +290,7 @@ def draw(stdscr, mode: str) -> None:
         f"rate   {fnum(pick(macro, 'rate'))}   infl {fnum(pick(macro, 'inflation'))}   gdp {fnum(pick(macro, 'gdp'), 0)}",
     )
 
-    y = 17
+    y = 18
     draw_box(stdscr, y, 1, full_w, 6, "OPEN TRADES")
     summary_text = " | ".join(symbol_summary[:1]) if symbol_summary else "n/a"
     safe_add(stdscr, y + 1, 3, f"open {open_count}   long {long_count}   short {short_count}   {summary_text}")
