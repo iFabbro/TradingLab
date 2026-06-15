@@ -281,7 +281,7 @@ def draw(stdscr, mode: str) -> None:
         attr = curses.A_DIM if alert == "No active warnings" else curses.A_BOLD
         safe_add(stdscr, y + 1 + i, 3, f"! {alert}", attr)
 
-    draw_box(stdscr, y, left_w + 2, right_w, 4, "MACRO")
+    draw_box(stdscr, y, left_w + 2, right_w, 4, "MACRO SNAPSHOT")
     safe_add(stdscr, y + 1, left_w + 4, f"date   {pick(macro, 'date')}")
     safe_add(
         stdscr,
