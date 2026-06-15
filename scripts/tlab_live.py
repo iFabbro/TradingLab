@@ -142,6 +142,17 @@ def draw_alerts_panel(stdscr, y: int, x: int, w: int, h: int, alerts: list[str],
         safe_add(stdscr, y + 1 + i, x + 2, f"! {alert}", attr)
 
 
+def draw_macro_panel(stdscr, y: int, x: int, w: int, macro: dict[str, Any]) -> None:
+    draw_box(stdscr, y, x, w, 4, "MACRO SNAPSHOT")
+    safe_add(stdscr, y + 1, x + 2, f"date   {pick(macro, 'date')}")
+    safe_add(
+        stdscr,
+        y + 2,
+        x + 2,
+        f"rate   {fnum(pick(macro, 'rate'))}   infl {fnum(pick(macro, 'inflation'))}   gdp {fnum(pick(macro, 'gdp'), 0)}",
+    )
+
+
 def build_alerts(
     metrics: dict[str, Any],
     trades: list[dict[str, Any]],
@@ -289,14 +300,7 @@ def draw(stdscr, mode: str) -> None:
     alerts_h = 4 if mode == "minimal" else 5
     draw_alerts_panel(stdscr, y, 1, left_w, alerts_h, alerts, mode)
 
-    draw_box(stdscr, y, left_w + 2, right_w, 4, "MACRO SNAPSHOT")
-    safe_add(stdscr, y + 1, left_w + 4, f"date   {pick(macro, 'date')}")
-    safe_add(
-        stdscr,
-        y + 2,
-        left_w + 4,
-        f"rate   {fnum(pick(macro, 'rate'))}   infl {fnum(pick(macro, 'inflation'))}   gdp {fnum(pick(macro, 'gdp'), 0)}",
-    )
+    draw_macro_panel(stdscr, y, left_w + 2, right_w, macro)
 
     y = 18
     draw_box(stdscr, y, 1, full_w, 6, "OPEN TRADES")
