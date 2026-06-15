@@ -135,6 +135,13 @@ def draw_system_panel(stdscr, y: int, w: int, mode: str, now: str) -> None:
     safe_add(stdscr, y + 1, 3, f"mode {mode:<8} status running    heartbeat {now}")
 
 
+def draw_alerts_panel(stdscr, y: int, x: int, w: int, h: int, alerts: list[str], mode: str) -> None:
+    draw_box(stdscr, y, x, w, h, "ALERTS")
+    for i, alert in enumerate(alerts[: (2 if mode == "minimal" else 3)]):
+        attr = curses.A_DIM if alert == "No active warnings" else curses.A_BOLD
+        safe_add(stdscr, y + 1 + i, x + 2, f"! {alert}", attr)
+
+
 def build_alerts(
     metrics: dict[str, Any],
     trades: list[dict[str, Any]],
@@ -280,10 +287,7 @@ def draw(stdscr, mode: str) -> None:
 
     y = 12
     alerts_h = 4 if mode == "minimal" else 5
-    draw_box(stdscr, y, 1, left_w, alerts_h, "ALERTS")
-    for i, alert in enumerate(alerts[: (2 if mode == "minimal" else 3)]):
-        attr = curses.A_DIM if alert == "No active warnings" else curses.A_BOLD
-        safe_add(stdscr, y + 1 + i, 3, f"! {alert}", attr)
+    draw_alerts_panel(stdscr, y, 1, left_w, alerts_h, alerts, mode)
 
     draw_box(stdscr, y, left_w + 2, right_w, 4, "MACRO SNAPSHOT")
     safe_add(stdscr, y + 1, left_w + 4, f"date   {pick(macro, 'date')}")
