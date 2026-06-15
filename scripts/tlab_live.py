@@ -293,7 +293,6 @@ def draw(stdscr, mode: str) -> None:
     draw_box(stdscr, y, 1, full_w, 6, "OPEN TRADES")
     summary_text = " | ".join(symbol_summary[:1]) if symbol_summary else "n/a"
     safe_add(stdscr, y + 1, 3, f"open {open_count}   long {long_count}   short {short_count}   {summary_text}")
-    safe_add(stdscr, y + 2, 3, f"{'TICKER':<6} {'DIR':<5} {'ENTRY':>8} {'CURR':>8} {'UPNL%':>7} {'STOP%':>7}", curses.A_UNDERLINE)
 
     if open_recent:
         for i, row in enumerate(open_recent[:1]):
@@ -307,30 +306,54 @@ def draw(stdscr, mode: str) -> None:
             upnl = calc_unrealized_pct(direction, entry, current) if entry is not None and current is not None else None
             stop_dist = calc_stop_distance_pct(direction, current, stop) if stop is not None and current is not None else None
 
-            safe_add(
-                stdscr,
-                y + 3 + i,
-                3,
-                f"{ticker:<6} "
-                f"{direction:<5} "
-                f"{fnum(entry):>8} "
-                f"{fnum(current):>8} "
-                f"{fnum(upnl):>7} "
-                f"{fnum(stop_dist):>7}",
-            )
-            safe_add(
-                stdscr,
-                y + 4 + i,
-                3,
-                f"stop {fnum(stop)}   target {fnum(pick(row, 'target_price'))}   asof {str(pick(price_row, 'asof'))[:19]}",
-                curses.A_DIM,
-            )
+            if mode == "minimal":
+                safe_add(
+                    stdscr,
+                    y + 2 + i,
+                    3,
+                    f"{ticker} {direction}  entry {fnum(entry)}  curr {fnum(current)}  upnl {fnum(upnl)}  stop {fnum(stop_dist)}",
+                )
+            else:
+                safe_add(stdscr, y + 2, 3, f"{'TICKER':<6} {'DIR':<5} {'ENTRY':>8} {'CURR':>8} {'UPNL%':>7} {'STOP%':>7}", curses.A_UNDERLINE)
+                safe_add(
+                    stdscr,
+                    y + 3 + i,
+                    3,
+                    f"{ticker:<6} "
+                    f"{direction:<5} "
+                    f"{fnum(entry):>8} "
+                    f"{fnum(current):>8} "
+                    f"{fnum(upnl):>7} "
+                    f"{fnum(stop_dist):>7}",
+                )
+                safe_add(
+                    stdscr,
+                    y + 4 + i,
+                    3,
+                    f"stop {fnum(stop)}   target {fnum(pick(row, 'target_price'))}   asof {str(pick(price_row, 'asof'))[:19]}",
+                    curses.A_DIM,
+                )
     else:
         safe_add(stdscr, y + 3, 3, "No open trades available.", curses.A_DIM)
 
     footer_y = 24
 
-    if mode != "minimal":
+    if mode == "minimal":
+        y = 24
+        draw_box(stdscr, y, 1, full_w, 3, "RECENT ACTIVITY")
+        if recent:
+            row = recent[-1]
+            safe_add(
+                stdscr,
+                y + 1,
+                3,
+                f"last trade {str(pick(row, 'entry_date'))[:10]} -> {str(pick(row, 'exit_date'))[:10]}  "
+                f"{str(pick(row, 'side', 'direction'))}  pnl {str(pick(row, 'pnl'))}",
+            )
+        else:
+            safe_add(stdscr, y + 1, 3, "No recent activity.", curses.A_DIM)
+        footer_y = y + 4
+    else:
         y = 24
         draw_box(stdscr, y, 1, full_w, 5, "RECENT ACTIVITY")
         safe_add(stdscr, y + 1, 3, f"{'ENTRY':<12} {'EXIT':<12} {'SIDE':<6} {'PNL':>8} {'RET%':>8} {'BARS':>6}", curses.A_UNDERLINE)
