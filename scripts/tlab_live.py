@@ -4,7 +4,7 @@ import argparse
 import csv
 import curses
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -77,6 +77,39 @@ def ffloat(value: Any) -> float | None:
         return float(value)
     except Exception:
         return None
+
+def parse_iso_datetime(value: Any) -> datetime | None:
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+    try:
+        if raw.endswith("Z"):
+            raw = raw[:-1] + "+00:00"
+        return datetime.fromisoformat(raw)
+    except Exception:
+        return None
+
+
+def current_prices_stale(path: Path, rows: list[dict[str, Any]]) -> bool:
+    ages: list[float] = []
+    file_age = file_age_seconds(path)
+    if file_age is not None:
+        ages.append(file_age)
+    row_ages = []
+    for row in rows:
+        asof_dt = parse_iso_datetime(pick(row, "asof", default=""))
+        if asof_dt is None:
+            continue
+        if asof_dt.tzinfo is None:
+            age = max(0.0, (datetime.now() - asof_dt).total_seconds())
+        else:
+            age = max(0.0, (datetime.now(timezone.utc) - asof_dt.astimezone(timezone.utc)).total_seconds())
+        row_ages.append(age)
+    if row_ages:
+        ages.append(min(row_ages))
+    if not ages:
+        return True
+    return min(ages) > PRICE_STALE_SECONDS
 
 
 def build_price_map(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
@@ -344,8 +377,7 @@ def draw(stdscr, mode: str) -> None:
     open_trades = load_csv(LIVE_DATA_DIR / "trades" / "open_trades.csv")
     current_prices_path = LIVE_DATA_DIR / "live" / "current_prices.csv"
     current_prices = load_csv(current_prices_path)
-    current_prices_age = file_age_seconds(current_prices_path)
-    prices_stale = current_prices_age is None or current_prices_age > PRICE_STALE_SECONDS
+    prices_stale = current_prices_stale(current_prices_path, current_prices)
     price_map = build_price_map(current_prices)
     macro = last_row(load_csv(DATA_DIR / "macro_snapshot.csv"))
     alerts = build_alerts(metrics, trades, open_trades, price_map, prices_stale)
