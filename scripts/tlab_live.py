@@ -14,6 +14,12 @@ LIVE_DATA_DIR = ROOT / "data"
 
 VALID_MODES = ("live", "snapshot", "minimal")
 
+REPORT_METRICS_PATH = DATA_DIR / "metrics.csv"
+REPORT_MACRO_PATH = DATA_DIR / "macro_snapshot.csv"
+LIVE_TRADES_PATH = LIVE_DATA_DIR / "backtests" / "trade_log.csv"
+LIVE_OPEN_TRADES_PATH = LIVE_DATA_DIR / "trades" / "open_trades.csv"
+LIVE_PRICES_PATH = LIVE_DATA_DIR / "live" / "current_prices.csv"
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="TLAB Live HUD")
@@ -372,14 +378,14 @@ def build_symbol_summary(open_trades, price_map):
     return out
 
 def draw(stdscr, mode: str) -> None:
-    metrics = first_row(load_csv(DATA_DIR / "metrics.csv"))
-    trades = load_csv(LIVE_DATA_DIR / "backtests" / "trade_log.csv")
-    open_trades = load_csv(LIVE_DATA_DIR / "trades" / "open_trades.csv")
-    current_prices_path = LIVE_DATA_DIR / "live" / "current_prices.csv"
+    metrics = first_row(load_csv(REPORT_METRICS_PATH))
+    trades = load_csv(LIVE_TRADES_PATH)
+    open_trades = load_csv(LIVE_OPEN_TRADES_PATH)
+    current_prices_path = LIVE_PRICES_PATH
     current_prices = load_csv(current_prices_path)
     prices_stale = current_prices_stale(current_prices_path, current_prices)
     price_map = build_price_map(current_prices)
-    macro = last_row(load_csv(DATA_DIR / "macro_snapshot.csv"))
+    macro = last_row(load_csv(REPORT_MACRO_PATH))
     alerts = build_alerts(metrics, trades, open_trades, price_map, prices_stale)
     recent = trades[-MAX_RECENT_TRADES:]
     open_recent = open_trades[:2]
