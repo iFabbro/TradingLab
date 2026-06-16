@@ -28,6 +28,7 @@ def parse_args() -> argparse.Namespace:
 REFRESH_SECONDS = 3
 MAX_RECENT_TRADES = 4
 MAX_ALERTS = 3
+PRICE_STALE_SECONDS = 900
 
 
 def load_csv(path: Path) -> list[dict[str, Any]]:
@@ -38,6 +39,15 @@ def load_csv(path: Path) -> list[dict[str, Any]]:
             return list(csv.DictReader(f))
     except Exception:
         return []
+
+
+def file_age_seconds(path: Path) -> float | None:
+    if not path.exists():
+        return None
+    try:
+        return max(0.0, time.time() - path.stat().st_mtime)
+    except Exception:
+        return None
 
 
 def first_row(rows: list[dict[str, Any]]) -> dict[str, Any]:
@@ -233,6 +243,7 @@ def build_alerts(
     trades: list[dict[str, Any]],
     open_trades: list[dict[str, Any]],
     price_map: dict[str, dict[str, Any]],
+    prices_stale: bool,
 ) -> list[str]:
     alerts = []
     try:
@@ -249,6 +260,8 @@ def build_alerts(
         alerts.append("Trade log empty")
     if not open_trades:
         alerts.append("Open trades empty")
+    if prices_stale:
+        alerts.append("Current prices stale")
 
     for row in open_trades[:MAX_ALERTS]:
         try:
@@ -284,11 +297,12 @@ def build_symbol_summary(open_trades, price_map):
             or pick(r, "pair")
             or "n/a"
         )
-        symbol = str(symbol).strip() or "n/a"
+        symbol = str(symbol).strip().upper() or "N/A"
         direction = str(pick(r, "side", "direction", default="")).lower()
         qty = pick(r, "qty", pick(r, "quantity", 1))
         entry = pick(r, "entry", pick(r, "entry_price", 0))
-        curr = price_map.get(symbol, entry)
+        price_row = price_map.get(symbol, {})
+        curr = pick(price_row, "current_price", default=entry)
 
         try:
             qty = float(qty or 0)
@@ -328,10 +342,13 @@ def draw(stdscr, mode: str) -> None:
     metrics = first_row(load_csv(DATA_DIR / "metrics.csv"))
     trades = load_csv(LIVE_DATA_DIR / "backtests" / "trade_log.csv")
     open_trades = load_csv(LIVE_DATA_DIR / "trades" / "open_trades.csv")
-    current_prices = load_csv(LIVE_DATA_DIR / "live" / "current_prices.csv")
+    current_prices_path = LIVE_DATA_DIR / "live" / "current_prices.csv"
+    current_prices = load_csv(current_prices_path)
+    current_prices_age = file_age_seconds(current_prices_path)
+    prices_stale = current_prices_age is None or current_prices_age > PRICE_STALE_SECONDS
     price_map = build_price_map(current_prices)
     macro = last_row(load_csv(DATA_DIR / "macro_snapshot.csv"))
-    alerts = build_alerts(metrics, trades, open_trades, price_map)
+    alerts = build_alerts(metrics, trades, open_trades, price_map, prices_stale)
     recent = trades[-MAX_RECENT_TRADES:]
     open_recent = open_trades[:2]
 
