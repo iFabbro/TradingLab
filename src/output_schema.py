@@ -17,11 +17,28 @@ TRADE_LOG_COLUMNS = [
     "strategy_tag",
     "status",
     "entry_date",
+    "entry_price",
     "exit_date",
+    "exit_price",
     "side",
     "pnl",
     "return_pct",
     "bars",
+]
+
+OPEN_TRADES_COLUMNS = [
+    "ticker",
+    "side",
+    "entry_price",
+    "stop_price",
+    "target_price",
+    "risk_reward",
+    "strategy_tag",
+    "regime",
+    "note",
+    "status",
+    "entry_date",
+    "position_size",
 ]
 
 EQUITY_CURVE_COLUMNS = [
@@ -61,6 +78,12 @@ def validate_trade_log(df: pd.DataFrame) -> pd.DataFrame:
     out = df.copy()
     _require_columns(out, TRADE_LOG_COLUMNS, "trade_log")
     return out[TRADE_LOG_COLUMNS]
+
+
+def validate_open_trades(df: pd.DataFrame) -> pd.DataFrame:
+    out = df.copy()
+    _require_columns(out, OPEN_TRADES_COLUMNS, "open_trades")
+    return out[OPEN_TRADES_COLUMNS]
 
 
 def validate_equity_curve(df: pd.DataFrame) -> pd.DataFrame:
