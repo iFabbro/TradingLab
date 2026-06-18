@@ -104,5 +104,5 @@ def generate_setup(
         note=note,
         status="open",
         open_date=pd.Timestamp.today().strftime("%Y-%m-%d"),
-        position_size=0.0,
+        position_size=1.0,
     )

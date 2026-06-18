@@ -338,7 +338,7 @@ def build_symbol_summary(open_trades, price_map):
         )
         symbol = str(symbol).strip().upper() or "N/A"
         direction = str(pick(r, "side", "direction", default="")).lower()
-        qty = pick(r, "qty", pick(r, "quantity", 1))
+        qty = pick(r, "qty", "quantity", "position_size", default=1)
         entry = pick(r, "entry", pick(r, "entry_price", 0))
         price_row = price_map.get(symbol, {})
         curr = pick(price_row, "current_price", default=entry)
@@ -347,6 +347,8 @@ def build_symbol_summary(open_trades, price_map):
             qty = float(qty or 0)
         except Exception:
             qty = 0.0
+        if qty <= 0:
+            qty = 1.0
 
         try:
             entry = float(entry or 0)
@@ -361,9 +363,10 @@ def build_symbol_summary(open_trades, price_map):
         side = 1.0 if direction == "long" else -1.0
         upnl_pct = ((curr - entry) / entry * 100.0 * side) if entry else 0.0
 
-        bucket = grouped.setdefault(symbol, {"count": 0, "sum_upnl": 0.0, "long": 0, "short": 0})
+        bucket = grouped.setdefault(symbol, {"count": 0, "sum_upnl": 0.0, "sum_qty": 0.0, "long": 0, "short": 0})
         bucket["count"] += 1
-        bucket["sum_upnl"] += upnl_pct
+        bucket["sum_qty"] += qty
+        bucket["sum_upnl"] += upnl_pct * qty
         if direction == "long":
             bucket["long"] += 1
         elif direction == "short":
@@ -372,7 +375,7 @@ def build_symbol_summary(open_trades, price_map):
     out = []
     for symbol, v in grouped.items():
         bias = "L" if v["long"] >= v["short"] else "S"
-        avg_upnl = (v["sum_upnl"] / v["count"]) if v["count"] else 0.0
+        avg_upnl = (v["sum_upnl"] / v["sum_qty"]) if v["sum_qty"] else 0.0
         out.append(f"{symbol} x{v['count']} {bias} avgUPNL {avg_upnl:+.1f}%")
 
     return out
