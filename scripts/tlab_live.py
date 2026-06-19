@@ -232,7 +232,7 @@ def draw_open_trades_panel(
 ) -> None:
     draw_box(stdscr, y, 1, w, 6, "OPEN TRADES")
     summary_text = " | ".join(symbol_summary[:1]) if symbol_summary else "n/a"
-    safe_add(stdscr, y + 1, 3, f"open {open_count}   long {long_count}   short {short_count}   {summary_text}")
+    safe_add(stdscr, y + 1, 3, f"open {open_count}   long {long_count:.2f}   short {short_count:.2f}   {summary_text}")
 
     if open_recent:
         for i, row in enumerate(open_recent[:1]):
@@ -323,6 +323,17 @@ def build_alerts(
 
 
 
+def _normalized_qty(row):
+    qty = pick(row, "qty", "quantity", "position_size", default=1)
+    try:
+        qty = float(qty or 0)
+    except Exception:
+        qty = 0.0
+    if qty <= 0:
+        qty = 1.0
+    return qty
+
+
 def build_symbol_summary(open_trades, price_map):
     grouped = {}
 
@@ -338,17 +349,10 @@ def build_symbol_summary(open_trades, price_map):
         )
         symbol = str(symbol).strip().upper() or "N/A"
         direction = str(pick(r, "side", "direction", default="")).lower()
-        qty = pick(r, "qty", "quantity", "position_size", default=1)
+        qty = _normalized_qty(r)
         entry = pick(r, "entry", pick(r, "entry_price", 0))
         price_row = price_map.get(symbol, {})
         curr = pick(price_row, "current_price", default=entry)
-
-        try:
-            qty = float(qty or 0)
-        except Exception:
-            qty = 0.0
-        if qty <= 0:
-            qty = 1.0
 
         try:
             entry = float(entry or 0)
@@ -368,9 +372,9 @@ def build_symbol_summary(open_trades, price_map):
         bucket["sum_qty"] += qty
         bucket["sum_upnl"] += upnl_pct * qty
         if direction == "long":
-            bucket["long"] += 1
+            bucket["long"] += qty
         elif direction == "short":
-            bucket["short"] += 1
+            bucket["short"] += qty
 
     out = []
     for symbol, v in grouped.items():
@@ -379,6 +383,21 @@ def build_symbol_summary(open_trades, price_map):
         out.append(f"{symbol} x{v['count']} {bias} avgUPNL {avg_upnl:+.1f}%")
 
     return out
+
+
+def build_side_exposure(open_trades):
+    long_qty = 0.0
+    short_qty = 0.0
+
+    for row in open_trades:
+        direction = str(pick(row, "side", "direction", default="")).lower()
+        qty = _normalized_qty(row)
+        if direction == "long":
+            long_qty += qty
+        elif direction == "short":
+            short_qty += qty
+
+    return long_qty, short_qty
 
 def draw(stdscr, mode: str) -> None:
     metrics = first_row(load_csv(REPORT_METRICS_PATH))
@@ -394,8 +413,7 @@ def draw(stdscr, mode: str) -> None:
     open_recent = open_trades[:2]
 
     open_count = len(open_trades)
-    long_count = sum(1 for r in open_trades if str(pick(r, "side", "direction", default="")).lower() == "long")
-    short_count = sum(1 for r in open_trades if str(pick(r, "side", "direction", default="")).lower() == "short")
+    long_count, short_count = build_side_exposure(open_trades)
     symbol_summary = build_symbol_summary(open_trades, price_map)
 
     stdscr.erase()
