@@ -78,12 +78,15 @@ class BacktestEngine:
         rets = equity_curve.pct_change().fillna(0.0)
         total_return = equity_curve.iloc[-1] / equity_curve.iloc[0] - 1.0 if len(equity_curve) else 0.0
         sharpe = 0.0 if rets.std(ddof=0) == 0 else np.sqrt(252) * rets.mean() / rets.std(ddof=0)
+        running_peak = equity_curve.cummax() if len(equity_curve) else equity_curve
+        drawdown = (equity_curve / running_peak - 1.0).fillna(0.0) if len(equity_curve) else pd.Series(dtype=float)
+        max_drawdown = abs(float(drawdown.min())) if len(drawdown) else 0.0
         win_rate = float((trade_log["pnl"] > 0).mean()) if not trade_log.empty else 0.0
         return {
             "total_return": float(total_return),
             "cagr": 0.0,
             "sharpe": float(sharpe),
-            "max_drawdown": 0.0,
+            "max_drawdown": max_drawdown,
             "win_rate": win_rate,
             "n_trades": int(len(trade_log)),
         }
