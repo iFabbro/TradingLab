@@ -18,6 +18,11 @@ class DummyStrategy(BaseStrategy):
         return out
 
 
+class FlatStrategy(BaseStrategy):
+    def generate_signals(self, prices: pd.DataFrame) -> pd.Series:
+        return pd.Series(0.0, index=prices.columns)
+
+
 @pytest.fixture
 def prices():
     idx = pd.date_range("2024-01-01", periods=40, freq="B")
@@ -59,3 +64,33 @@ def test_backtest_nonempty_equity(prices, tmp_path):
     result = engine.run(prices, DummyStrategy(cfg))
     assert not result.equity_curve.empty
     assert result.equity_curve.iloc[-1] > 0
+
+def test_backtest_flat_signal_has_zero_pnl(prices, tmp_path):
+    cfg = StrategyConfig(name="flat", universe=list(prices.columns), lookback=5)
+    engine = BacktestEngine(output_dir=tmp_path)
+    result = engine.run(prices, FlatStrategy(cfg))
+
+    assert result.trade_log.loc[0, "pnl"] == pytest.approx(0.0)
+    assert result.trade_log.loc[0, "return_pct"] == pytest.approx(0.0)
+    assert result.metrics["total_return"] == pytest.approx(0.0)
+    assert result.metrics["win_rate"] == pytest.approx(0.0)
+    assert result.metrics["max_drawdown"] == pytest.approx(0.0)
+    assert result.equity_curve.iloc[-1] == pytest.approx(100000.0)
+
+
+def test_backtest_loss_path_updates_metrics(tmp_path):
+    idx = pd.date_range("2024-01-01", periods=40, freq="B")
+    prices = pd.DataFrame({"close": np.linspace(120, 100, len(idx))}, index=idx)
+
+    cfg = StrategyConfig(name="dummy-loss", universe=list(prices.columns), lookback=5)
+    engine = BacktestEngine(output_dir=tmp_path)
+    result = engine.run(prices, DummyStrategy(cfg))
+
+    assert result.trade_log.loc[0, "pnl"] == pytest.approx(-20.0)
+    assert result.trade_log.loc[0, "return_pct"] == pytest.approx((100.0 / 120.0) - 1.0)
+    assert result.metrics["n_trades"] == 1
+    assert result.metrics["total_return"] == pytest.approx(-20.0 / 100000.0)
+    assert result.metrics["win_rate"] == pytest.approx(0.0)
+    assert result.metrics["max_drawdown"] > 0.0
+    assert result.equity_curve.iloc[-1] == pytest.approx(99980.0)
+
