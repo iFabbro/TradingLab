@@ -36,22 +36,35 @@ class BacktestEngine:
         if "close" not in prices.columns:
             raise ValueError("prices deve contenere la colonna 'close'")
 
+        signals = strategy.generate_signals(prices)
+        quantity = 1.0
+        entry_price = float(prices["close"].iloc[0])
+        exit_price = float(prices["close"].iloc[-1])
+        pnl = 0.0
+        return_pct = 0.0
+
+        if not signals.empty and float(signals.iloc[0]) > 0:
+            pnl = (exit_price - entry_price) * quantity
+            return_pct = exit_price / entry_price - 1.0
+
         equity_curve = pd.Series(index=prices.index, dtype=float)
         equity_curve.iloc[0:] = self.initial_capital
+        equity_curve.iloc[-1] = self.initial_capital + pnl
 
         trade_log = pd.DataFrame(
             [
                 {
-                    "ticker": self.ticker,
-                    "strategy_tag": self.strategy_tag,
+                    "ticker": prices.columns[0],
+                    "strategy_tag": getattr(getattr(strategy, "config", None), "name", self.strategy_tag),
                     "status": "closed",
                     "entry_date": prices.index[0],
-                    "entry_price": float(prices["close"].iloc[0]),
+                    "entry_price": entry_price,
                     "exit_date": prices.index[-1],
-                    "exit_price": float(prices["close"].iloc[-1]),
+                    "exit_price": exit_price,
                     "side": "long",
-                    "pnl": 0.0,
-                    "return_pct": 0.0,
+                    "quantity": quantity,
+                    "pnl": pnl,
+                    "return_pct": return_pct,
                     "bars": max(len(prices) - 1, 0),
                 }
             ]
