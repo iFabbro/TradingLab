@@ -251,16 +251,17 @@ def draw_open_trades_panel(
                     stdscr,
                     y + 2 + i,
                     3,
-                    f"{ticker} {direction}  entry {fnum(entry)}  curr {fnum(current)}  upnl {fnum(upnl)}  stop {fnum(stop_dist)}",
+                    f"{ticker} {direction} qty {fnum(_normalized_qty(row))} entry {fnum(entry)} curr {fnum(current)} upnl {fnum(upnl)} stop {fnum(stop_dist)}",
                 )
             else:
-                safe_add(stdscr, y + 2, 3, f"{'TICKER':<6} {'DIR':<5} {'ENTRY':>8} {'CURR':>8} {'UPNL%':>7} {'STOP%':>7}", curses.A_UNDERLINE)
+                safe_add(stdscr, y + 2, 3, f"{'TICKER':<6} {'DIR':<5} {'QTY':>6} {'ENTRY':>8} {'CURR':>8} {'UPNL%':>7} {'STOP%':>7}", curses.A_UNDERLINE)
                 safe_add(
                     stdscr,
                     y + 3 + i,
                     3,
                     f"{ticker:<6} "
                     f"{direction:<5} "
+                    f"{fnum(_normalized_qty(row)):>6} "
                     f"{fnum(entry):>8} "
                     f"{fnum(current):>8} "
                     f"{fnum(upnl):>7} "
