@@ -28,7 +28,7 @@ class BacktestEngine:
         self.ticker = ticker
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-    def run(self, prices: pd.DataFrame) -> BacktestResult:
+    def run(self, prices: pd.DataFrame, strategy) -> BacktestResult:
         if prices.empty:
             raise ValueError("prices non può essere vuoto")
 

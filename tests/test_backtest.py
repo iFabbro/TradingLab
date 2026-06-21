@@ -23,8 +23,7 @@ def prices():
     idx = pd.date_range("2024-01-01", periods=40, freq="B")
     data = pd.DataFrame(
         {
-            "AAPL": np.linspace(100, 120, len(idx)),
-            "MSFT": np.linspace(100, 110, len(idx)),
+            "close": np.linspace(100, 120, len(idx)),
         },
         index=idx,
     )
@@ -33,7 +32,7 @@ def prices():
 
 def test_backtest_outputs(tmp_path, prices):
     cfg = StrategyConfig(name="dummy", universe=list(prices.columns), lookback=5)
-    engine = BacktestEngine(cfg, output_dir=tmp_path)
+    engine = BacktestEngine(output_dir=tmp_path)
     result = engine.run(prices, DummyStrategy(cfg))
 
     assert isinstance(result.trade_log, pd.DataFrame)
@@ -49,7 +48,7 @@ def test_backtest_outputs(tmp_path, prices):
 
 def test_backtest_nonempty_equity(prices, tmp_path):
     cfg = StrategyConfig(name="dummy", universe=list(prices.columns), lookback=5)
-    engine = BacktestEngine(cfg, output_dir=tmp_path)
+    engine = BacktestEngine(output_dir=tmp_path)
     result = engine.run(prices, DummyStrategy(cfg))
     assert not result.equity_curve.empty
     assert result.equity_curve.iloc[-1] > 0
