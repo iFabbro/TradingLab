@@ -41,6 +41,13 @@ def test_backtest_outputs(tmp_path, prices):
     assert "sharpe" in result.metrics
     assert "max_drawdown" in result.metrics
     assert "win_rate" in result.metrics
+    assert result.trade_log.loc[0, "quantity"] == pytest.approx(1.0)
+    assert result.trade_log.loc[0, "pnl"] == pytest.approx(20.0)
+    assert result.trade_log.loc[0, "return_pct"] == pytest.approx(0.2)
+    assert result.metrics["n_trades"] == 1
+    assert result.metrics["total_return"] == pytest.approx(20.0 / 100000.0)
+    assert result.metrics["win_rate"] == pytest.approx(1.0)
+    assert result.equity_curve.iloc[-1] == pytest.approx(100020.0)
     assert (tmp_path / "trade_log.csv").exists()
     assert (tmp_path / "equity_curve.csv").exists()
     assert (tmp_path / "metrics.csv").exists()
