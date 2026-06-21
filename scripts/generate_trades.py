@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from src.output_schema import validate_open_trades
 from src.signals import generate_setup
 
 
@@ -74,9 +75,12 @@ def main() -> None:
             "entry_date": setup.open_date,
             "position_size": setup.position_size,
         }
-        df_row = pd.DataFrame([row])
+        df_row = validate_open_trades(pd.DataFrame([row]))
         if out_path.exists():
-            df_row.to_csv(out_path, mode="a", header=False, index=False)
+            existing = pd.read_csv(out_path)
+            combined = pd.concat([existing, df_row], ignore_index=True)
+            combined = validate_open_trades(combined)
+            combined.to_csv(out_path, index=False)
         else:
             df_row.to_csv(out_path, index=False)
         print(f"saved_to: {out_path}")
