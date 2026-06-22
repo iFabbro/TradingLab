@@ -94,3 +94,19 @@ def test_backtest_loss_path_updates_metrics(tmp_path):
     assert result.metrics["max_drawdown"] > 0.0
     assert result.equity_curve.iloc[-1] == pytest.approx(99980.0)
 
+def test_backtest_mark_to_market_equity_curve_has_drawdown_and_nonzero_sharpe(tmp_path):
+    idx = pd.date_range("2024-01-01", periods=4, freq="B")
+    prices = pd.DataFrame({"close": [100.0, 110.0, 105.0, 115.0]}, index=idx)
+
+    cfg = StrategyConfig(name="dummy-mtm", universe=list(prices.columns), lookback=2)
+    engine = BacktestEngine(output_dir=tmp_path)
+    result = engine.run(prices, DummyStrategy(cfg))
+
+    expected_equity = pd.Series([100000.0, 100010.0, 100005.0, 100015.0], index=idx)
+
+    assert result.equity_curve.equals(expected_equity)
+    assert result.trade_log.loc[0, "pnl"] == pytest.approx(15.0)
+    assert result.metrics["total_return"] == pytest.approx(15.0 / 100000.0)
+    assert result.metrics["max_drawdown"] == pytest.approx(abs((100005.0 / 100010.0) - 1.0))
+    assert result.metrics["sharpe"] != pytest.approx(0.0)
+
