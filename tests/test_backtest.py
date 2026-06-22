@@ -194,4 +194,5 @@ def test_backtest_time_signal_losing_trade_sets_zero_win_rate(tmp_path):
     assert result.metrics["total_return"] == pytest.approx(-0.2)
     assert result.metrics["win_rate"] == pytest.approx(0.0)
     assert result.metrics["max_drawdown"] == pytest.approx(0.2)
+    assert result.metrics["sharpe"] != pytest.approx(0.0)
 
