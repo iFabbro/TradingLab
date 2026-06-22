@@ -79,7 +79,8 @@ class BacktestEngine:
             if entry_idx is not None:
                 entry_price = float(prices.loc[entry_idx, "close"])
                 exit_price = float(prices.loc[exit_idx, "close"])
-                trade_pnl = (exit_price - entry_price) * quantity
+                trade_quantity = self.initial_capital / entry_price if entry_price != 0 else 0.0
+                trade_pnl = (exit_price - entry_price) * trade_quantity
                 trade_return_pct = exit_price / entry_price - 1.0
                 trade_bars = int(prices.index.get_loc(exit_idx) - prices.index.get_loc(entry_idx))
                 trade_log = pd.DataFrame(
@@ -93,7 +94,7 @@ class BacktestEngine:
                             "exit_date": exit_idx,
                             "exit_price": exit_price,
                             "side": "long",
-                            "quantity": quantity,
+                            "quantity": trade_quantity,
                             "pnl": trade_pnl,
                             "return_pct": trade_return_pct,
                             "bars": trade_bars,
