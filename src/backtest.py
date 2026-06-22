@@ -49,7 +49,9 @@ class BacktestEngine:
 
         equity_curve = pd.Series(index=prices.index, dtype=float)
         equity_curve.iloc[0:] = self.initial_capital
-        equity_curve.iloc[-1] = self.initial_capital + pnl
+
+        if not signals.empty and float(signals.iloc[0]) > 0:
+            equity_curve = self.initial_capital + (prices["close"].astype(float) - entry_price) * quantity
 
         trade_log = pd.DataFrame(
             [
