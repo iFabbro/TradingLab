@@ -23,6 +23,15 @@ class FlatStrategy(BaseStrategy):
         return pd.Series(0.0, index=prices.columns)
 
 
+class TimeSignalStrategy(BaseStrategy):
+    def __init__(self, config: StrategyConfig, signal_values: list[float]) -> None:
+        super().__init__(config)
+        self.signal_values = signal_values
+
+    def generate_signals(self, prices: pd.DataFrame) -> pd.Series:
+        return pd.Series(self.signal_values, index=prices.index, dtype=float)
+
+
 @pytest.fixture
 def prices():
     idx = pd.date_range("2024-01-01", periods=40, freq="B")
@@ -108,5 +117,26 @@ def test_backtest_mark_to_market_equity_curve_has_drawdown_and_nonzero_sharpe(tm
     assert result.trade_log.loc[0, "pnl"] == pytest.approx(15.0)
     assert result.metrics["total_return"] == pytest.approx(15.0 / 100000.0)
     assert result.metrics["max_drawdown"] == pytest.approx(abs((100005.0 / 100010.0) - 1.0))
+    assert result.metrics["sharpe"] != pytest.approx(0.0)
+
+def test_backtest_time_signal_controls_exposure_path(tmp_path):
+    idx = pd.date_range("2024-01-01", periods=5, freq="B")
+    prices = pd.DataFrame({"close": [100.0, 110.0, 121.0, 118.58, 124.509]}, index=idx)
+
+    cfg = StrategyConfig(name="time-signal", universe=["close"], lookback=2)
+    strategy = TimeSignalStrategy(cfg, [0.0, 1.0, 1.0, 0.0, 0.0])
+
+    engine = BacktestEngine(output_dir=tmp_path)
+    result = engine.run(prices, strategy)
+
+    expected_equity = pd.Series(
+        [100000.0, 100000.0, 110000.0, 107800.0, 107800.0],
+        index=idx,
+    )
+
+    pd.testing.assert_series_equal(result.equity_curve, expected_equity)
+    assert result.trade_log.loc[0, "pnl"] == pytest.approx(7800.0)
+    assert result.metrics["total_return"] == pytest.approx(0.078)
+    assert result.metrics["max_drawdown"] == pytest.approx(0.02)
     assert result.metrics["sharpe"] != pytest.approx(0.0)
 
