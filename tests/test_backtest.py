@@ -135,7 +135,14 @@ def test_backtest_time_signal_controls_exposure_path(tmp_path):
     )
 
     pd.testing.assert_series_equal(result.equity_curve, expected_equity)
-    assert result.trade_log.loc[0, "pnl"] == pytest.approx(7800.0)
+    assert result.trade_log.loc[0, "entry_date"] == idx[1]
+    assert result.trade_log.loc[0, "entry_price"] == pytest.approx(110.0)
+    assert result.trade_log.loc[0, "exit_date"] == idx[3]
+    assert result.trade_log.loc[0, "exit_price"] == pytest.approx(118.58)
+    assert result.trade_log.loc[0, "bars"] == 2
+    assert result.trade_log.loc[0, "pnl"] == pytest.approx(8.58)
+    assert result.trade_log.loc[0, "return_pct"] == pytest.approx((118.58 / 110.0) - 1.0)
+    assert result.metrics["n_trades"] == 1
     assert result.metrics["total_return"] == pytest.approx(0.078)
     assert result.metrics["max_drawdown"] == pytest.approx(0.02)
     assert result.metrics["sharpe"] != pytest.approx(0.0)

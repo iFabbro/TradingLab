@@ -60,24 +60,84 @@ class BacktestEngine:
             return_pct = exit_price / entry_price - 1.0
             equity_curve = self.initial_capital + (prices["close"].astype(float) - entry_price) * quantity
 
-        trade_log = pd.DataFrame(
-            [
-                {
-                    "ticker": prices.columns[0],
-                    "strategy_tag": getattr(getattr(strategy, "config", None), "name", self.strategy_tag),
-                    "status": "closed",
-                    "entry_date": prices.index[0],
-                    "entry_price": entry_price,
-                    "exit_date": prices.index[-1],
-                    "exit_price": exit_price,
-                    "side": "long",
-                    "quantity": quantity,
-                    "pnl": pnl,
-                    "return_pct": return_pct,
-                    "bars": max(len(prices) - 1, 0),
-                }
-            ]
-        )
+        if is_time_signal:
+            entry_idx = None
+            exit_idx = None
+            pos_diff = position.diff().fillna(position.iloc[0])
+
+            entry_points = pos_diff[pos_diff > 0].index
+            exit_points = pos_diff[pos_diff < 0].index
+
+            if len(entry_points) > 0:
+                entry_idx = entry_points[0]
+                later_exits = [ts for ts in exit_points if ts > entry_idx]
+                exit_idx = later_exits[0] if later_exits else prices.index[-1]
+            elif position.iloc[0] > 0:
+                entry_idx = prices.index[0]
+                exit_idx = exit_points[0] if len(exit_points) > 0 else prices.index[-1]
+
+            if entry_idx is not None:
+                entry_price = float(prices.loc[entry_idx, "close"])
+                exit_price = float(prices.loc[exit_idx, "close"])
+                trade_pnl = (exit_price - entry_price) * quantity
+                trade_return_pct = exit_price / entry_price - 1.0
+                trade_bars = int(prices.index.get_loc(exit_idx) - prices.index.get_loc(entry_idx))
+                trade_log = pd.DataFrame(
+                    [
+                        {
+                            "ticker": prices.columns[0],
+                            "strategy_tag": getattr(getattr(strategy, "config", None), "name", self.strategy_tag),
+                            "status": "closed",
+                            "entry_date": entry_idx,
+                            "entry_price": entry_price,
+                            "exit_date": exit_idx,
+                            "exit_price": exit_price,
+                            "side": "long",
+                            "quantity": quantity,
+                            "pnl": trade_pnl,
+                            "return_pct": trade_return_pct,
+                            "bars": trade_bars,
+                        }
+                    ]
+                )
+            else:
+                trade_log = pd.DataFrame(
+                    [
+                        {
+                            "ticker": prices.columns[0],
+                            "strategy_tag": getattr(getattr(strategy, "config", None), "name", self.strategy_tag),
+                            "status": "closed",
+                            "entry_date": prices.index[0],
+                            "entry_price": entry_price,
+                            "exit_date": prices.index[-1],
+                            "exit_price": exit_price,
+                            "side": "long",
+                            "quantity": 0.0,
+                            "pnl": 0.0,
+                            "return_pct": 0.0,
+                            "bars": 0,
+                        }
+                    ]
+                )
+        else:
+            trade_log = pd.DataFrame(
+                [
+                    {
+                        "ticker": prices.columns[0],
+                        "strategy_tag": getattr(getattr(strategy, "config", None), "name", self.strategy_tag),
+                        "status": "closed",
+                        "entry_date": prices.index[0],
+                        "entry_price": entry_price,
+                        "exit_date": prices.index[-1],
+                        "exit_price": exit_price,
+                        "side": "long",
+                        "quantity": quantity,
+                        "pnl": pnl,
+                        "return_pct": return_pct,
+                        "bars": max(len(prices) - 1, 0),
+                    }
+                ]
+            )
 
         metrics = self._metrics(equity_curve, trade_log)
         self._save_outputs(trade_log, equity_curve, metrics)
