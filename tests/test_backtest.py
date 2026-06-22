@@ -172,3 +172,26 @@ def test_backtest_time_signal_midpath_equity_matches_realized_trade_pnl(tmp_path
     assert result.metrics["max_drawdown"] == pytest.approx(0.1)
     assert result.metrics["sharpe"] != pytest.approx(0.0)
 
+
+def test_backtest_time_signal_losing_trade_sets_zero_win_rate(tmp_path):
+    idx = pd.date_range("2024-01-01", periods=5, freq="B")
+    prices = pd.DataFrame({"close": [100.0, 120.0, 108.0, 96.0, 96.0]}, index=idx)
+
+    cfg = StrategyConfig(name="time-signal-loss", universe=["close"], lookback=2)
+    strategy = TimeSignalStrategy(cfg, [0.0, 1.0, 1.0, 0.0, 0.0])
+
+    engine = BacktestEngine(output_dir=tmp_path)
+    result = engine.run(prices, strategy)
+
+    expected_equity = pd.Series(
+        [100000.0, 100000.0, 90000.0, 80000.0, 80000.0],
+        index=idx,
+    )
+
+    pd.testing.assert_series_equal(result.equity_curve, expected_equity)
+    assert result.trade_log.loc[0, "pnl"] == pytest.approx(-20000.0)
+    assert result.trade_log.loc[0, "pnl"] == pytest.approx(result.equity_curve.iloc[-1] - result.equity_curve.iloc[0])
+    assert result.metrics["total_return"] == pytest.approx(-0.2)
+    assert result.metrics["win_rate"] == pytest.approx(0.0)
+    assert result.metrics["max_drawdown"] == pytest.approx(0.2)
+
