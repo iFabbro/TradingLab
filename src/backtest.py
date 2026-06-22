@@ -43,14 +43,21 @@ class BacktestEngine:
         pnl = 0.0
         return_pct = 0.0
 
-        if not signals.empty and float(signals.iloc[0]) > 0:
-            pnl = (exit_price - entry_price) * quantity
-            return_pct = exit_price / entry_price - 1.0
-
         equity_curve = pd.Series(index=prices.index, dtype=float)
         equity_curve.iloc[0:] = self.initial_capital
 
-        if not signals.empty and float(signals.iloc[0]) > 0:
+        is_time_signal = isinstance(signals, pd.Series) and signals.index.equals(prices.index)
+
+        if is_time_signal:
+            position = signals.astype(float).clip(lower=0.0, upper=1.0).fillna(0.0)
+            close_returns = prices["close"].astype(float).pct_change().fillna(0.0)
+            strategy_returns = close_returns * position.shift(1).fillna(0.0)
+            equity_curve = self.initial_capital * (1.0 + strategy_returns).cumprod()
+            pnl = float(equity_curve.iloc[-1] - self.initial_capital)
+            return_pct = float(equity_curve.iloc[-1] / self.initial_capital - 1.0)
+        elif not signals.empty and float(signals.iloc[0]) > 0:
+            pnl = (exit_price - entry_price) * quantity
+            return_pct = exit_price / entry_price - 1.0
             equity_curve = self.initial_capital + (prices["close"].astype(float) - entry_price) * quantity
 
         trade_log = pd.DataFrame(
