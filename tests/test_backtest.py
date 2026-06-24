@@ -196,3 +196,23 @@ def test_backtest_time_signal_losing_trade_sets_zero_win_rate(tmp_path):
     assert result.metrics["max_drawdown"] == pytest.approx(0.2)
     assert result.metrics["sharpe"] != pytest.approx(0.0)
 
+
+
+def test_backtest_time_signal_all_zero_keeps_flat_equity_and_zero_win_rate(tmp_path):
+    idx = pd.date_range("2024-01-01", periods=5, freq="B")
+    prices = pd.DataFrame({"close": [100.0, 101.0, 102.0, 103.0, 104.0]}, index=idx)
+
+    cfg = StrategyConfig(name="time-signal-flat", universe=["close"], lookback=2)
+    strategy = TimeSignalStrategy(cfg, [0.0, 0.0, 0.0, 0.0, 0.0])
+
+    engine = BacktestEngine(output_dir=tmp_path)
+    result = engine.run(prices, strategy)
+
+    expected_equity = pd.Series([100000.0, 100000.0, 100000.0, 100000.0, 100000.0], index=idx)
+
+    pd.testing.assert_series_equal(result.equity_curve, expected_equity)
+    assert result.trade_log.loc[0, "quantity"] == pytest.approx(0.0)
+    assert result.trade_log.loc[0, "pnl"] == pytest.approx(0.0)
+    assert result.metrics["total_return"] == pytest.approx(0.0)
+    assert result.metrics["win_rate"] == pytest.approx(0.0)
+    assert result.metrics["max_drawdown"] == pytest.approx(0.0)
