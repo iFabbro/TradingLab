@@ -236,3 +236,23 @@ def test_backtest_time_signal_all_one_tracks_full_price_path(tmp_path):
     assert result.trade_log.loc[0, "pnl"] == pytest.approx(15000.0)
     assert result.metrics["win_rate"] == pytest.approx(1.0)
     assert result.metrics["total_return"] == pytest.approx(0.15)
+
+
+def test_backtest_time_signal_clips_above_one_to_full_exposure(tmp_path):
+    idx = pd.date_range("2024-01-01", periods=4, freq="B")
+    prices = pd.DataFrame({"close": [100.0, 110.0, 105.0, 115.0]}, index=idx)
+
+    cfg = StrategyConfig(name="time-signal-clipped-high", universe=["close"], lookback=2)
+    strategy = TimeSignalStrategy(cfg, [2.0, 2.0, 2.0, 2.0])
+
+    engine = BacktestEngine(output_dir=tmp_path)
+    result = engine.run(prices, strategy)
+
+    expected_equity = pd.Series([100000.0, 110000.0, 105000.0, 115000.0], index=idx)
+
+    pd.testing.assert_series_equal(result.equity_curve, expected_equity)
+    assert result.trade_log.loc[0, "entry_date"] == idx[0]
+    assert result.trade_log.loc[0, "exit_date"] == idx[-1]
+    assert result.trade_log.loc[0, "pnl"] == pytest.approx(15000.0)
+    assert result.metrics["win_rate"] == pytest.approx(1.0)
+    assert result.metrics["total_return"] == pytest.approx(0.15)
