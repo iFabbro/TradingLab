@@ -6,6 +6,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from src.output_schema import validate_equity_curve, validate_metrics, validate_trade_log
+
 
 @dataclass
 class BacktestResult:
@@ -162,6 +164,12 @@ class BacktestEngine:
         }
 
     def _save_outputs(self, trade_log: pd.DataFrame, equity_curve: pd.Series, metrics: dict) -> None:
-        trade_log.to_csv(self.output_dir / "trade_log.csv", index=False)
-        equity_curve.rename("equity").to_csv(self.output_dir / "equity_curve.csv")
-        pd.DataFrame([metrics]).to_csv(self.output_dir / "metrics.csv", index=False)
+        trade_log_out = validate_trade_log(trade_log)
+        equity_curve_out = validate_equity_curve(
+            equity_curve.rename("equity").rename_axis("date").reset_index()
+        )
+        metrics_out = validate_metrics(pd.DataFrame([metrics]))
+
+        trade_log_out.to_csv(self.output_dir / "trade_log.csv", index=False)
+        equity_curve_out.to_csv(self.output_dir / "equity_curve.csv", index=False)
+        metrics_out.to_csv(self.output_dir / "metrics.csv", index=False)
