@@ -161,6 +161,7 @@ class BacktestEngine:
             "max_drawdown": max_drawdown,
             "win_rate": win_rate,
             "n_trades": int(len(trade_log)),
+            "warning_nonpositive_sharpe": bool(sharpe <= 0.0),
         }
 
     def _save_outputs(self, trade_log: pd.DataFrame, equity_curve: pd.Series, metrics: dict) -> None:
