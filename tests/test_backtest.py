@@ -363,3 +363,19 @@ def test_backtest_time_signal_mixed_path_preserves_zero_win_rate_and_drawdown(tm
     assert result.metrics["total_return"] == pytest.approx(-0.2)
     assert result.metrics["win_rate"] == pytest.approx(0.0)
     assert result.metrics["max_drawdown"] == pytest.approx(0.2)
+
+
+def test_backtest_equity_curve_csv_has_canonical_columns(tmp_path):
+    idx = pd.date_range("2024-01-01", periods=4, freq="B")
+    prices = pd.DataFrame({"close": [100.0, 110.0, 105.0, 115.0]}, index=idx)
+
+    cfg = StrategyConfig(name="equity-curve-schema", universe=["close"], lookback=2)
+    strategy = TimeSignalStrategy(cfg, [1.0, 1.0, 1.0, 1.0])
+
+    engine = BacktestEngine(output_dir=tmp_path)
+    engine.run(prices, strategy)
+
+    equity_csv = pd.read_csv(tmp_path / "equity_curve.csv")
+    assert list(equity_csv.columns) == ["date", "equity"]
+    assert equity_csv.iloc[0]["equity"] == pytest.approx(100000.0)
+    assert equity_csv.iloc[-1]["equity"] == pytest.approx(115000.0)
