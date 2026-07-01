@@ -405,3 +405,24 @@ def test_backtest_trade_log_csv_has_canonical_columns(tmp_path):
         "return_pct",
         "bars",
     ]
+
+
+def test_backtest_metrics_csv_has_canonical_columns(tmp_path):
+    idx = pd.date_range("2024-01-01", periods=4, freq="B")
+    prices = pd.DataFrame({"close": [100.0, 110.0, 105.0, 115.0]}, index=idx)
+
+    cfg = StrategyConfig(name="metrics-schema", universe=["close"], lookback=2)
+    strategy = TimeSignalStrategy(cfg, [1.0, 1.0, 1.0, 1.0])
+
+    engine = BacktestEngine(output_dir=tmp_path)
+    engine.run(prices, strategy)
+
+    metrics_csv = pd.read_csv(tmp_path / "metrics.csv")
+    assert list(metrics_csv.columns) == [
+        "total_return",
+        "cagr",
+        "sharpe",
+        "max_drawdown",
+        "win_rate",
+        "n_trades",
+    ]
