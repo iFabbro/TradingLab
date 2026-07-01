@@ -379,3 +379,29 @@ def test_backtest_equity_curve_csv_has_canonical_columns(tmp_path):
     assert list(equity_csv.columns) == ["date", "equity"]
     assert equity_csv.iloc[0]["equity"] == pytest.approx(100000.0)
     assert equity_csv.iloc[-1]["equity"] == pytest.approx(115000.0)
+
+
+def test_backtest_trade_log_csv_has_canonical_columns(tmp_path):
+    idx = pd.date_range("2024-01-01", periods=4, freq="B")
+    prices = pd.DataFrame({"close": [100.0, 110.0, 105.0, 115.0]}, index=idx)
+
+    cfg = StrategyConfig(name="trade-log-schema", universe=["close"], lookback=2)
+    strategy = TimeSignalStrategy(cfg, [1.0, 1.0, 1.0, 1.0])
+
+    engine = BacktestEngine(output_dir=tmp_path)
+    engine.run(prices, strategy)
+
+    trade_log_csv = pd.read_csv(tmp_path / "trade_log.csv")
+    assert list(trade_log_csv.columns) == [
+        "ticker",
+        "strategy_tag",
+        "status",
+        "entry_date",
+        "entry_price",
+        "exit_date",
+        "exit_price",
+        "side",
+        "pnl",
+        "return_pct",
+        "bars",
+    ]
