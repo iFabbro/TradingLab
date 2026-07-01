@@ -10,7 +10,7 @@ def test_max_drawdown_negative():
 
 def test_max_drawdown_duration_positive():
     dur = max_drawdown_duration(RETURNS)
-    assert dur >= 0
+    assert dur == 4
 
 def test_equity_curve_starts_above_initial():
     eq = equity_curve([0.1, 0.2])
