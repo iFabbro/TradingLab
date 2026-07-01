@@ -25,12 +25,14 @@ def montecarlo_summary(
     seed: int | None = 42,
 ) -> dict:
     sims = run_montecarlo(returns, n_simulations=n_simulations, seed=seed)
+    prob_loss_50pct = float(np.mean(sims < 0.5))
     summary = {
         "n_simulations": n_simulations,
         "mean_final_equity": float(np.mean(sims)),
         "std_final_equity": float(np.std(sims)),
         "prob_profit": float(np.mean(sims > 1.0)),
-        "prob_loss_50pct": float(np.mean(sims < 0.5)),
+        "prob_loss_50pct": prob_loss_50pct,
+        "warning_high_loss_prob": prob_loss_50pct > 0.1,
     }
     for p in percentiles:
         summary[f"p{p}"] = float(np.percentile(sims, p))
