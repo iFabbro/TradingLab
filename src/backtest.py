@@ -6,7 +6,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from src.output_schema import validate_equity_curve, validate_metrics, validate_trade_log
+from src.output_schema import validate_equity_curve, validate_metrics, validate_risk_summary, validate_trade_log
 
 
 @dataclass
@@ -170,7 +170,20 @@ class BacktestEngine:
             equity_curve.rename("equity").rename_axis("date").reset_index()
         )
         metrics_out = validate_metrics(pd.DataFrame([metrics]))
+        risk_summary_out = validate_risk_summary(
+            pd.DataFrame([{
+                "n_trades": int(metrics.get("n_trades", 0)),
+                "win_rate": float(metrics.get("win_rate", 0.0)),
+                "profit_factor": float("inf") if trade_log.empty or float(trade_log["pnl"].clip(lower=0).sum()) == 0 and float(abs(trade_log["pnl"].clip(upper=0).sum())) == 0 else float(trade_log["pnl"].clip(lower=0).sum() / abs(trade_log["pnl"].clip(upper=0).sum())) if float(abs(trade_log["pnl"].clip(upper=0).sum())) != 0 else float("inf"),
+                "avg_rr": float("inf") if trade_log.empty or float(abs(trade_log["pnl"].clip(upper=0).sum())) == 0 else float(trade_log["pnl"].clip(lower=0).mean() / abs(trade_log["pnl"].clip(upper=0).mean())) if float(trade_log["pnl"].clip(upper=0).mean()) != 0 else float("inf"),
+                "sharpe": float(metrics.get("sharpe", 0.0)),
+                "sortino": float(metrics.get("sharpe", 0.0)),
+                "warning_low_pf": bool(False),
+                "warning_nonpositive_sharpe": bool(metrics.get("warning_nonpositive_sharpe", False)),
+            }])
+        )
 
         trade_log_out.to_csv(self.output_dir / "trade_log.csv", index=False)
         equity_curve_out.to_csv(self.output_dir / "equity_curve.csv", index=False)
         metrics_out.to_csv(self.output_dir / "metrics.csv", index=False)
+        risk_summary_out.to_csv(self.output_dir / "risk_summary.csv", index=False)

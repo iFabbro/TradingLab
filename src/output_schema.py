@@ -56,6 +56,17 @@ METRICS_COLUMNS = [
     "warning_nonpositive_sharpe",
 ]
 
+RISK_SUMMARY_COLUMNS = [
+    "n_trades",
+    "win_rate",
+    "profit_factor",
+    "avg_rr",
+    "sharpe",
+    "sortino",
+    "warning_low_pf",
+    "warning_nonpositive_sharpe",
+]
+
 MACRO_SNAPSHOT_COLUMNS = [
     "date",
     "rate",
@@ -97,6 +108,12 @@ def validate_metrics(df: pd.DataFrame) -> pd.DataFrame:
     out = df.copy()
     _require_columns(out, METRICS_COLUMNS, "metrics")
     return out[METRICS_COLUMNS]
+
+
+def validate_risk_summary(df: pd.DataFrame) -> pd.DataFrame:
+    out = df.copy()
+    _require_columns(out, RISK_SUMMARY_COLUMNS, "risk_summary")
+    return out[RISK_SUMMARY_COLUMNS]
 
 
 def validate_macro_snapshot(df: pd.DataFrame) -> pd.DataFrame:
