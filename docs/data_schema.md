@@ -27,6 +27,7 @@ Canonical columns:
 - max_drawdown
 - win_rate
 - n_trades
+- warning_nonpositive_sharpe
 
 Notes:
 - All summary metrics files should expose the same header, even if some values are temporarily `0.0`.
