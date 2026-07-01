@@ -21,7 +21,7 @@ def test_sortino():
 
 def test_risk_summary_keys():
     summary = risk_summary(RETURNS)
-    for k in ["n_trades", "win_rate", "profit_factor", "avg_rr", "sharpe", "sortino"]:
+    for k in ["n_trades", "win_rate", "profit_factor", "avg_rr", "sharpe", "sortino", "warning_low_pf"]:
         assert k in summary
 
 def test_empty_returns():
