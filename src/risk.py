@@ -49,11 +49,13 @@ def sortino_ratio(returns: Sequence[float], risk_free: float = 0.0) -> float:
 
 
 def risk_summary(returns: Sequence[float], risk_free: float = 0.0) -> dict:
+    pf = profit_factor(returns)
     return {
         "n_trades": len(returns),
         "win_rate": win_rate(returns),
-        "profit_factor": profit_factor(returns),
+        "profit_factor": pf,
         "avg_rr": avg_risk_reward(returns),
         "sharpe": sharpe_ratio(returns, risk_free),
         "sortino": sortino_ratio(returns, risk_free),
+        "warning_low_pf": pf < 1.2,
     }
