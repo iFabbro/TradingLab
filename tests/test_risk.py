@@ -24,5 +24,9 @@ def test_risk_summary_keys():
     for k in ["n_trades", "win_rate", "profit_factor", "avg_rr", "sharpe", "sortino", "warning_low_pf"]:
         assert k in summary
 
+def test_risk_summary_shows_nonpositive_sharpe_warning_flag():
+    summary = risk_summary(RETURNS)
+    assert "warning_nonpositive_sharpe" in summary
+
 def test_empty_returns():
     assert win_rate([]) == 0.0
