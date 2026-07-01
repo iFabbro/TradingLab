@@ -53,6 +53,7 @@ METRICS_COLUMNS = [
     "max_drawdown",
     "win_rate",
     "n_trades",
+    "warning_nonpositive_sharpe",
 ]
 
 MACRO_SNAPSHOT_COLUMNS = [

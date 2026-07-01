@@ -425,4 +425,5 @@ def test_backtest_metrics_csv_has_canonical_columns(tmp_path):
         "max_drawdown",
         "win_rate",
         "n_trades",
+        "warning_nonpositive_sharpe",
     ]
