@@ -72,3 +72,21 @@ def test_optimizer_rejects_overfitted_candidates():
     )
 
     assert result.candidates == []
+
+
+def test_optimization_report_shows_empty_state_message():
+    from src.optimization import format_optimization_report
+    base = make_config()
+    result = optimize_strategy(
+        engine_factory=lambda cfg: DummyEngine(cfg),
+        strategy_factory=make_strategy,
+        base_config=base,
+        train_data="train",
+        test_data="test",
+        param_grid={"lookback": [6]},
+        min_test_over_baseline=-1.0,
+        min_train_test_ratio=0.9,
+        max_drawdown_gap=0.01,
+    )
+    report = format_optimization_report(result)
+    assert "No candidate passed anti-overfitting filters." in report
