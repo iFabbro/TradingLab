@@ -14,7 +14,7 @@ def test_run_montecarlo_positive_equity():
 
 def test_montecarlo_summary_keys():
     summary = montecarlo_summary(RETURNS, n_simulations=200)
-    for k in ["n_simulations", "mean_final_equity", "std_final_equity", "prob_profit", "p5", "p50", "p95"]:
+    for k in ["n_simulations", "mean_final_equity", "std_final_equity", "prob_profit", "prob_loss_50pct", "p5", "p50", "p95"]:
         assert k in summary
 
 def test_prob_profit_range():
