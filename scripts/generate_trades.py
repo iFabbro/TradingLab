@@ -36,6 +36,7 @@ def main() -> None:
     parser.add_argument("--stop-atr-mult", type=float, default=1.5)
     parser.add_argument("--target-rr", type=float, default=2.0)
     parser.add_argument("--output", default=None, help="CSV dove appendere il setup")
+    parser.add_argument("--regime", default="unknown", help="Regime di mercato corrente")
     args = parser.parse_args()
 
     df = _load_csv(args.file)
@@ -46,6 +47,7 @@ def main() -> None:
         atr_window=args.atr_window,
         stop_atr_mult=args.stop_atr_mult,
         target_rr=args.target_rr,
+        regime_name=args.regime,
     )
 
     print(f"ticker: {setup.ticker}")
