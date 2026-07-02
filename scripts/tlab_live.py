@@ -478,10 +478,10 @@ def draw(stdscr, mode: str) -> None:
         price_map,
     )
 
-    footer_y = 24
+    footer_y = 28
 
     if mode == "minimal":
-        y = 24
+        y = 28
         draw_box(stdscr, y, 1, full_w, 3, "RECENT ACTIVITY")
         if recent:
             row = recent[-1]
@@ -496,7 +496,7 @@ def draw(stdscr, mode: str) -> None:
             safe_add(stdscr, y + 1, 3, "No recent activity.", curses.A_DIM)
         footer_y = y + 4
     else:
-        y = 24
+        y = 28
         draw_box(stdscr, y, 1, full_w, 5, "RECENT ACTIVITY")
         safe_add(stdscr, y + 1, 3, f"{'ENTRY':<12} {'EXIT':<12} {'SIDE':<6} {'PNL':>8} {'RET%':>8} {'BARS':>6}", curses.A_UNDERLINE)
 
