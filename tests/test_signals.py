@@ -41,3 +41,4 @@ def test_generate_setup_uses_regime_decision():
 def test_generate_setup_defaults_to_unknown_regime():
     setup = generate_setup(_sample_df(), ticker="TEST", direction="long")
     assert setup.regime == "unknown"
+    assert setup.strategy_tag == "undefined"
