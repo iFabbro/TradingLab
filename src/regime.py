@@ -127,3 +127,21 @@ REGIME_STRATEGY_MAP: dict[str, str] = {
 def suggest_strategy(regime: str) -> str:
     """Restituisce la strategia suggerita per un dato regime."""
     return REGIME_STRATEGY_MAP.get(regime, "undefined")
+
+
+def regime_decision(regime: str) -> dict[str, str]:
+    """Restituisce una decisione sintetica: strategia + profilo allocativo."""
+    if regime.startswith("bullish"):
+        allocation = "directional"
+    elif regime.startswith("bearish"):
+        allocation = "defensive"
+    elif regime.startswith("sideways"):
+        allocation = "range"
+    else:
+        allocation = "neutral"
+
+    return {
+        "regime": regime,
+        "strategy": suggest_strategy(regime),
+        "allocation": allocation,
+    }

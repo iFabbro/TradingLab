@@ -9,6 +9,7 @@ from src.regime import (
     classify_volume,
     detect_regime,
     suggest_strategy,
+    regime_decision,
 )
 from src.portfolio import regime_allocation_hint
 
@@ -116,3 +117,15 @@ def test_regime_to_portfolio_hint_alignment():
     assert regime_allocation_hint("bullish_high_vol") == "directional"
     assert regime_allocation_hint("bearish_low_vol") == "defensive"
     assert regime_allocation_hint("sideways_normal_vol") == "range"
+
+def test_regime_decision_known():
+    result = regime_decision("bullish_high_vol")
+    assert result["regime"] == "bullish_high_vol"
+    assert result["strategy"] == "momentum_long"
+    assert result["allocation"] == "directional"
+
+def test_regime_decision_unknown():
+    result = regime_decision("foo_bar")
+    assert result["regime"] == "foo_bar"
+    assert result["strategy"] == "undefined"
+    assert result["allocation"] == "neutral"
