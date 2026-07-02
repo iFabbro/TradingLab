@@ -11,6 +11,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from src.output_schema import validate_open_trades
+from src.regime import detect_regime
 from src.signals import generate_setup
 
 
@@ -36,10 +37,18 @@ def main() -> None:
     parser.add_argument("--stop-atr-mult", type=float, default=1.5)
     parser.add_argument("--target-rr", type=float, default=2.0)
     parser.add_argument("--output", default=None, help="CSV dove appendere il setup")
-    parser.add_argument("--regime", default="unknown", help="Regime di mercato corrente")
+    parser.add_argument("--regime", default=None, help="Regime di mercato corrente")
     args = parser.parse_args()
 
     df = _load_csv(args.file)
+    regime_name = args.regime
+    if not regime_name:
+        detected = detect_regime(
+            df["close"],
+            volume=df["volume"] if "volume" in df.columns else None,
+        )
+        regime_name = detected["regime"].iloc[-1]
+
     setup = generate_setup(
         df,
         ticker=args.ticker,
@@ -47,7 +56,7 @@ def main() -> None:
         atr_window=args.atr_window,
         stop_atr_mult=args.stop_atr_mult,
         target_rr=args.target_rr,
-        regime_name=args.regime,
+        regime_name=regime_name,
     )
 
     print(f"ticker: {setup.ticker}")
