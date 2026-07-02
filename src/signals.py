@@ -5,6 +5,8 @@ from typing import Optional
 
 import pandas as pd
 
+from src.regime import regime_decision
+
 
 @dataclass(frozen=True)
 class TradeSetup:
@@ -64,6 +66,7 @@ def generate_setup(
     stop_atr_mult: float = 1.5,
     target_rr: float = 2.0,
     volume_col: Optional[str] = "volume",
+    regime_name: str = "unknown",
 ) -> TradeSetup:
     direction = _validate_direction(direction)
 
@@ -74,8 +77,9 @@ def generate_setup(
     entry = float(last["close"])
     atr = _atr_like(data, window=atr_window)
 
-    regime = "unknown"
-    strategy_tag = "discretionary"
+    decision = regime_decision(regime_name)
+    regime = decision["regime"]
+    strategy_tag = decision["strategy"]
 
     if direction == "long":
         stop = entry - stop_atr_mult * atr
@@ -90,7 +94,7 @@ def generate_setup(
         raise ValueError("Risk non valido per generare il setup")
 
     rr = abs(target - entry) / abs(entry - stop)
-    note = f"ATR={atr_window}x{stop_atr_mult}; volume_col={volume_col}"
+    note = f"ATR={atr_window}x{stop_atr_mult}; volume_col={volume_col}; allocation={decision["allocation"]}"
 
     return TradeSetup(
         ticker=ticker,
