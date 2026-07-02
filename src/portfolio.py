@@ -78,3 +78,14 @@ def display_weights(weights: dict[str, float]) -> None:
         print(f"{asset:<20} {w:>10.4f} {w*100:>7.2f}%")
     print("-" * 42)
     print(f"{'TOTALE':<20} {total:>10.4f} {total*100:>7.2f}%")
+
+def regime_allocation_hint(regime: str) -> str:
+    """Suggerisce un profilo allocativo minimale a partire dal regime."""
+    r = regime.lower().strip()
+    if r.startswith('bullish'):
+        return 'directional'
+    if r.startswith('bearish'):
+        return 'defensive'
+    if r.startswith('sideways'):
+        return 'range'
+    return 'neutral'

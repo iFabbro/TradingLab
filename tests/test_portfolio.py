@@ -3,7 +3,7 @@
 import numpy as np
 import pandas as pd
 import pytest
-from src.portfolio import equal_weight, inverse_volatility, target_volatility
+from src.portfolio import equal_weight, inverse_volatility, target_volatility, regime_allocation_hint
 
 
 @pytest.fixture
@@ -64,3 +64,9 @@ def test_target_vol_scaling(sample_returns):
 def test_target_vol_invalid():
     with pytest.raises(ValueError):
         target_volatility(pd.DataFrame({"A": [0.01]}), target_vol=-0.05)
+
+def test_regime_allocation_hint():
+    assert regime_allocation_hint('bullish_high_vol') == 'directional'
+    assert regime_allocation_hint('bearish_low_vol') == 'defensive'
+    assert regime_allocation_hint('sideways_normal_vol') == 'range'
+    assert regime_allocation_hint('foo_bar') == 'neutral'
