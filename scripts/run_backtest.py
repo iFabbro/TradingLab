@@ -37,15 +37,12 @@ def main() -> None:
         strategy_tag="momentum",
         ticker=ticker,
     )
-    result = engine.run(prices)
+    result = engine.run(prices, strategy)
 
     validate_trade_log(pd.read_csv(Path(args.output_dir) / "trade_log.csv"))
     validate_metrics(pd.read_csv(Path(args.output_dir) / "metrics.csv"))
     validate_equity_curve(pd.read_csv(Path(args.output_dir) / "equity_curve.csv"))
 
-    print(result.metrics)
-    print(result.trade_log.tail())
-    print(result.equity_curve.tail())
 
 
 if __name__ == "__main__":
