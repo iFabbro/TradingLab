@@ -170,6 +170,10 @@ class BacktestEngine:
             equity_curve.rename("equity").rename_axis("date").reset_index()
         )
         metrics_out = validate_metrics(pd.DataFrame([metrics]))
+        rets = equity_curve.pct_change().fillna(0.0)
+        downside = rets[rets < 0]
+        sortino = 0.0 if downside.std(ddof=0) == 0 else np.sqrt(252) * rets.mean() / downside.std(ddof=0)
+
         risk_summary_out = validate_risk_summary(
             pd.DataFrame([{
                 "n_trades": int(metrics.get("n_trades", 0)),
@@ -177,7 +181,7 @@ class BacktestEngine:
                 "profit_factor": float("inf") if trade_log.empty or float(trade_log["pnl"].clip(lower=0).sum()) == 0 and float(abs(trade_log["pnl"].clip(upper=0).sum())) == 0 else float(trade_log["pnl"].clip(lower=0).sum() / abs(trade_log["pnl"].clip(upper=0).sum())) if float(abs(trade_log["pnl"].clip(upper=0).sum())) != 0 else float("inf"),
                 "avg_rr": float("inf") if trade_log.empty or float(abs(trade_log["pnl"].clip(upper=0).sum())) == 0 else float(trade_log["pnl"].clip(lower=0).mean() / abs(trade_log["pnl"].clip(upper=0).mean())) if float(trade_log["pnl"].clip(upper=0).mean()) != 0 else float("inf"),
                 "sharpe": float(metrics.get("sharpe", 0.0)),
-                "sortino": float(metrics.get("sharpe", 0.0)),
+                "sortino": float(sortino),
                 "warning_low_pf": bool(False),
                 "warning_nonpositive_sharpe": bool(metrics.get("warning_nonpositive_sharpe", False)),
             }])
