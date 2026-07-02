@@ -459,12 +459,12 @@ def draw(stdscr, mode: str) -> None:
     draw_alerts_panel(stdscr, y, 1, left_w, alerts_h, alerts, mode)
 
     draw_macro_panel(stdscr, y, left_w + 2, right_w, macro)
-    draw_risk_panel(stdscr, y + 4, left_w + 2, right_w, risk_summary)
+    draw_risk_panel(stdscr, y + 5, left_w + 2, right_w, risk_summary)
 
-    safe_add(stdscr, 19, 1, "OPERATIONS", curses.A_BOLD)
-    hline(stdscr, 19, 12, max(8, w - 13))
+    safe_add(stdscr, 20, 1, "OPERATIONS", curses.A_BOLD)
+    hline(stdscr, 20, 12, max(8, w - 13))
 
-    y = 20
+    y = 21
     draw_open_trades_panel(
         stdscr,
         y,
