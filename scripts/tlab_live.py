@@ -309,7 +309,7 @@ def build_alerts(
     except Exception:
         pass
     try:
-        if float(pick(metrics, "max_drawdown", default="0")) <= -0.10:
+        if float(pick(metrics, "max_drawdown", default="0")) >= 0.10:
             alerts.append(f"Drawdown high: {fnum(metrics.get('max_drawdown'))}")
     except Exception:
         pass
