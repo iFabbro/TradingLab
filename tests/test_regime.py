@@ -10,6 +10,7 @@ from src.regime import (
     detect_regime,
     suggest_strategy,
 )
+from src.portfolio import regime_allocation_hint
 
 # ---------------------------------------------------------------------------
 # Fixture dati sintetici
@@ -110,3 +111,8 @@ def test_suggest_strategy_known():
 
 def test_suggest_strategy_unknown():
     assert suggest_strategy("foo_bar") == "undefined"
+
+def test_regime_to_portfolio_hint_alignment():
+    assert regime_allocation_hint("bullish_high_vol") == "directional"
+    assert regime_allocation_hint("bearish_low_vol") == "defensive"
+    assert regime_allocation_hint("sideways_normal_vol") == "range"
