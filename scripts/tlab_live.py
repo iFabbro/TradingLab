@@ -15,6 +15,7 @@ LIVE_DATA_DIR = ROOT / "data"
 VALID_MODES = ("live", "snapshot", "minimal")
 
 REPORT_METRICS_PATH = DATA_DIR / "metrics.csv"
+REPORT_RISK_PATH = DATA_DIR / "risk_summary.csv"
 REPORT_MACRO_PATH = DATA_DIR / "macro_snapshot.csv"
 LIVE_TRADES_PATH = LIVE_DATA_DIR / "backtests" / "trade_log.csv"
 LIVE_OPEN_TRADES_PATH = LIVE_DATA_DIR / "trades" / "open_trades.csv"
@@ -199,6 +200,22 @@ def draw_macro_panel(stdscr, y: int, x: int, w: int, macro: dict[str, Any]) -> N
         y + 2,
         x + 2,
         f"rate   {fnum(pick(macro, 'rate'))}   infl {fnum(pick(macro, 'inflation'))}   gdp {fnum(pick(macro, 'gdp'), 0)}",
+    )
+
+
+def draw_risk_panel(stdscr, y: int, x: int, w: int, risk: dict[str, Any]) -> None:
+    draw_box(stdscr, y, x, w, 4, "RISK SUMMARY")
+    safe_add(
+        stdscr,
+        y + 1,
+        x + 2,
+        f"trades {pick(risk, 'n_trades'):<6}  win {fnum(pick(risk, 'win_rate')):<6}  pf {fnum(pick(risk, 'profit_factor'))}",
+    )
+    safe_add(
+        stdscr,
+        y + 2,
+        x + 2,
+        f"avg_rr {fnum(pick(risk, 'avg_rr')):<6}  sharpe {fnum(pick(risk, 'sharpe')):<6}  sortino {fnum(pick(risk, 'sortino'))}",
     )
 
 
@@ -402,6 +419,7 @@ def build_side_exposure(open_trades):
 
 def draw(stdscr, mode: str) -> None:
     metrics = first_row(load_csv(REPORT_METRICS_PATH))
+    risk_summary = first_row(load_csv(REPORT_RISK_PATH))
     trades = load_csv(LIVE_TRADES_PATH)
     open_trades = load_csv(LIVE_OPEN_TRADES_PATH)
     current_prices_path = LIVE_PRICES_PATH
@@ -441,8 +459,9 @@ def draw(stdscr, mode: str) -> None:
     draw_alerts_panel(stdscr, y, 1, left_w, alerts_h, alerts, mode)
 
     draw_macro_panel(stdscr, y, left_w + 2, right_w, macro)
+    draw_risk_panel(stdscr, y + 4, left_w + 2, right_w, risk_summary)
 
-    y = 18
+    y = 20
     draw_open_trades_panel(
         stdscr,
         y,
