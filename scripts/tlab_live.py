@@ -98,10 +98,7 @@ def parse_iso_datetime(value: Any) -> datetime | None:
 
 
 def current_prices_stale(path: Path, rows: list[dict[str, Any]]) -> bool:
-    ages: list[float] = []
     file_age = file_age_seconds(path)
-    if file_age is not None:
-        ages.append(file_age)
     row_ages = []
     for row in rows:
         asof_dt = parse_iso_datetime(pick(row, "asof", default=""))
@@ -113,10 +110,10 @@ def current_prices_stale(path: Path, rows: list[dict[str, Any]]) -> bool:
             age = max(0.0, (datetime.now(timezone.utc) - asof_dt.astimezone(timezone.utc)).total_seconds())
         row_ages.append(age)
     if row_ages:
-        ages.append(min(row_ages))
-    if not ages:
-        return True
-    return min(ages) > PRICE_STALE_SECONDS
+        return min(row_ages) > PRICE_STALE_SECONDS
+    if file_age is not None:
+        return file_age > PRICE_STALE_SECONDS
+    return True
 
 
 def build_price_map(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
