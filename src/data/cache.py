@@ -5,6 +5,7 @@ Path: data/cache/<ticker>_<interval>.{parquet|csv|pkl}
 from __future__ import annotations
 
 from pathlib import Path
+import time
 import pandas as pd
 
 CACHE_DIR = Path(__file__).resolve().parents[2] / "data" / "cache"
@@ -41,6 +42,15 @@ def exists(ticker: str, interval: str) -> bool:
 
 def cache_exists(ticker: str, interval: str) -> bool:
     return exists(ticker, interval)
+
+
+def is_fresh(ticker: str, interval: str, max_age_seconds: int = 86400) -> bool:
+    base = _base(ticker, interval)
+    for path in (base.with_suffix(".parquet"), base.with_suffix(".csv"), base.with_suffix(".pkl")):
+        if path.exists():
+            age = time.time() - path.stat().st_mtime
+            return age <= max_age_seconds
+    return False
 
 
 def load(ticker: str, interval: str) -> pd.DataFrame:

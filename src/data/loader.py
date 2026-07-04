@@ -30,7 +30,7 @@ def load_ohlcv(
         DataFrame normalizzato con colonne [open, high, low, close, volume]
         e index datetime (name="date").
     """
-    if use_cache and not force_download and cache_mod.exists(ticker, interval):
+    if use_cache and not force_download and cache_mod.exists(ticker, interval) and cache_mod.is_fresh(ticker, interval):
         df = cache_mod.load(ticker, interval)
         return df
 

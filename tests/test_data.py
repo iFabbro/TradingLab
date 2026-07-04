@@ -40,3 +40,26 @@ def test_load_ohlcv_smoke(tmp_path, monkeypatch):
     out = load_ohlcv("AAPL", "2024-01-01", "2024-01-15", use_cache=True)
     assert not out.empty
     assert list(out.columns) == OHLCV_COLUMNS
+
+@pytest.mark.integration
+def test_load_ohlcv_ignores_stale_cache(tmp_path, monkeypatch):
+    import os
+    import time
+
+    monkeypatch.setattr("src.data.cache.CACHE_DIR", tmp_path)
+
+    stale = pd.DataFrame(
+        {c: [1.0] for c in OHLCV_COLUMNS},
+        index=pd.to_datetime(["2024-01-01"]),
+    )
+    stale.index.name = "date"
+    save_cache(stale, "AAPL", "1d")
+
+    cache_file = next(tmp_path.glob("AAPL_1d.*"))
+    old_ts = time.time() - 3 * 86400
+    os.utime(cache_file, (old_ts, old_ts))
+
+    out = load_ohlcv("AAPL", "2024-01-01", "2024-01-15", use_cache=True)
+    assert not out.empty
+    assert list(out.columns) == OHLCV_COLUMNS
+    assert len(out) != len(stale) or not out.equals(stale)
