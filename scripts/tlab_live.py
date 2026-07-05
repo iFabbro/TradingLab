@@ -249,7 +249,7 @@ def draw_open_trades_panel(
     safe_add(stdscr, y + 1, 3, f"open {open_count}   long {long_count:.2f}   short {short_count:.2f}   {summary_text}")
 
     if open_recent:
-        for i, row in enumerate(open_recent[:1]):
+        for i, row in enumerate(open_recent[:2]):
             ticker = str(pick(row, 'ticker')).upper()
             direction = str(pick(row, 'side', 'direction')).lower()
             entry = ffloat(pick(row, 'entry_price'))
