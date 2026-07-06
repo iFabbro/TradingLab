@@ -217,7 +217,7 @@ def draw_risk_panel(stdscr, y: int, x: int, w: int, risk: dict[str, Any]) -> Non
 
 
 def draw_kpi_panel(stdscr, y: int, w: int, metrics: dict[str, Any]) -> None:
-    draw_box(stdscr, y, 1, w, 4, "KPI")
+    draw_box(stdscr, y, 1, w, 4, "PERFORMANCE")
     safe_add(
         stdscr,
         y + 1,
