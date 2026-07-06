@@ -202,6 +202,11 @@ def draw_macro_panel(stdscr, y: int, x: int, w: int, macro: dict[str, Any]) -> N
 
 def draw_risk_panel(stdscr, y: int, x: int, w: int, risk: dict[str, Any]) -> None:
     draw_box(stdscr, y, x, w, 4, "RISK SUMMARY")
+    warn = "ok"
+    if pick(risk, "warning_low_pf"):
+        warn = "pf"
+    if pick(risk, "warning_nonpositive_sharpe"):
+        warn = "pf/sh" if warn != "ok" else "sh"
     safe_add(
         stdscr,
         y + 1,
@@ -212,7 +217,7 @@ def draw_risk_panel(stdscr, y: int, x: int, w: int, risk: dict[str, Any]) -> Non
         stdscr,
         y + 2,
         x + 2,
-        f"avg_rr {fnum(pick(risk, 'avg_rr')):<6}  sharpe {fnum(pick(risk, 'sharpe')):<6}  sortino {fnum(pick(risk, 'sortino'))}",
+        f"avg_rr {fnum(pick(risk, 'avg_rr')):<6}  sharpe {fnum(pick(risk, 'sharpe')):<6}  sortino {fnum(pick(risk, 'sortino'))}  warn {warn}",
     )
 
 
