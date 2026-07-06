@@ -285,7 +285,7 @@ def draw_open_trades_panel(
                     stdscr,
                     y + 4 + i,
                     3,
-                    f"entry {str(pick(row, 'entry_date'))[:10]}   tag {str(pick(row, 'strategy_tag'))[:12]}   reg {str(pick(row, 'regime'))[:10]}   stop {fnum(stop)}   target {fnum(pick(row, 'target_price'))}   asof {str(pick(price_row, 'asof'))[:19]}",
+                    f"entry {str(pick(row, 'entry_date'))[:10]}   tag {str(pick(row, 'strategy_tag'))[:12]}   reg {str(pick(row, 'regime'))[:10]}   st {str(pick(row, 'status'))[:8]}   stop {fnum(stop)}   target {fnum(pick(row, 'target_price'))}   asof {str(pick(price_row, 'asof'))[:19]}",
                     curses.A_DIM,
                 )
     else:
