@@ -8,7 +8,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from src.backtest import BacktestEngine
-from src.output_schema import validate_risk_summary
+from src.output_schema import validate_metrics, validate_risk_summary, validate_trade_log
 from src.strategies import StrategyConfig, BaseStrategy
 
 
@@ -68,9 +68,13 @@ def test_backtest_outputs(tmp_path, prices):
     assert (tmp_path / "metrics.csv").exists()
     assert (tmp_path / "risk_summary.csv").exists()
 
+    trade_log = validate_trade_log(pd.read_csv(tmp_path / "trade_log.csv"))
+    metrics = validate_metrics(pd.read_csv(tmp_path / "metrics.csv"))
     risk_summary = validate_risk_summary(
         pd.read_csv(tmp_path / "risk_summary.csv")
     )
+    assert trade_log.loc[0, "quantity"] == pytest.approx(1.0)
+    assert metrics.loc[0, "n_trades"] == 1
     assert risk_summary.loc[0, "n_trades"] == 1
 
 
