@@ -88,7 +88,7 @@ def main() -> None:
         }
         df_row = validate_open_trades(pd.DataFrame([row]))
         if out_path.exists():
-            existing = pd.read_csv(out_path)
+            existing = validate_open_trades(pd.read_csv(out_path))
             combined = pd.concat([existing, df_row], ignore_index=True)
             combined = validate_open_trades(combined)
             combined.to_csv(out_path, index=False)
