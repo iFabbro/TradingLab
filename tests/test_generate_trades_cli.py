@@ -2,6 +2,7 @@ import pandas as pd
 import subprocess
 import sys
 from pathlib import Path
+from src.output_schema import validate_open_trades
 
 
 def test_generate_trades_cli_runs(tmp_path):
@@ -59,23 +60,10 @@ def test_generate_trades_cli_writes_valid_open_trades_csv(tmp_path):
         check=True,
     )
 
-    saved = pd.read_csv(out_path)
-    assert list(saved.columns) == [
-        "ticker",
-        "side",
-        "entry_price",
-        "stop_price",
-        "target_price",
-        "risk_reward",
-        "strategy_tag",
-        "regime",
-        "note",
-        "status",
-        "entry_date",
-        "position_size",
-    ]
+    saved = validate_open_trades(pd.read_csv(out_path))
     assert len(saved) == 1
     assert saved.loc[0, "ticker"] == "TEST"
+    assert saved.loc[0, "side"] == "long"
 
     subprocess.run(
         [
