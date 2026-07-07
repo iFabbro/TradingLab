@@ -421,6 +421,24 @@ def test_backtest_trade_log_csv_has_canonical_columns(tmp_path):
     ]
 
 
+
+
+def test_backtest_time_signal_trade_log_is_coherent_with_equity_delta(tmp_path):
+    idx = pd.date_range("2024-01-01", periods=5, freq="B")
+    prices = pd.DataFrame({"close": [100.0, 120.0, 108.0, 96.0, 96.0]}, index=idx)
+
+    cfg = StrategyConfig(name="time-signal-coherent", universe=["close"], lookback=2)
+    strategy = TimeSignalStrategy(cfg, [0.0, 1.0, 1.0, 0.0, 0.0])
+
+    engine = BacktestEngine(output_dir=tmp_path)
+    result = engine.run(prices, strategy)
+
+    trade = result.trade_log.loc[0]
+    assert trade["quantity"] == pytest.approx(100000.0 / 120.0)
+    assert trade["pnl_realized"] == pytest.approx(trade["pnl"])
+    assert trade["pnl_unrealized"] == pytest.approx(0.0)
+    assert trade["pnl"] == pytest.approx(result.equity_curve.iloc[-1] - result.equity_curve.iloc[0])
+    assert trade["pnl"] == pytest.approx(-20000.0)
 def test_backtest_metrics_csv_has_canonical_columns(tmp_path):
     idx = pd.date_range("2024-01-01", periods=4, freq="B")
     prices = pd.DataFrame({"close": [100.0, 110.0, 105.0, 115.0]}, index=idx)
