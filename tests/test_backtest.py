@@ -323,6 +323,8 @@ def test_backtest_time_signal_break_even_trade_keeps_zero_win_rate(tmp_path):
     )
 
     pd.testing.assert_series_equal(result.equity_curve, expected_equity)
+    assert result.trade_log.loc[0, "pnl_realized"] == pytest.approx(0.0)
+    assert result.trade_log.loc[0, "pnl_unrealized"] == pytest.approx(0.0)
     assert result.trade_log.loc[0, "pnl"] == pytest.approx(0.0)
     assert result.trade_log.loc[0, "pnl"] == pytest.approx(result.equity_curve.iloc[-1] - result.equity_curve.iloc[0])
     assert result.metrics["total_return"] == pytest.approx(0.0)
