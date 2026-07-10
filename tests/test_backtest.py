@@ -68,13 +68,29 @@ def test_backtest_outputs(tmp_path, prices):
     assert (tmp_path / "metrics.csv").exists()
     assert (tmp_path / "risk_summary.csv").exists()
 
-    trade_log = validate_trade_log(pd.read_csv(tmp_path / "trade_log.csv"))
-    metrics = validate_metrics(pd.read_csv(tmp_path / "metrics.csv"))
-    risk_summary = validate_risk_summary(
-        pd.read_csv(tmp_path / "risk_summary.csv")
-    )
+    output_dir = engine.output_dir
+    trade_log = validate_trade_log(pd.read_csv(output_dir / "trade_log.csv"))
+    metrics = validate_metrics(pd.read_csv(output_dir / "metrics.csv"))
+    risk_summary = validate_risk_summary(pd.read_csv(output_dir / "risk_summary.csv"))
+    equity_curve_csv = pd.read_csv(output_dir / "equity_curve.csv")
+
     assert trade_log.loc[0, "quantity"] == pytest.approx(1.0)
-    assert metrics.loc[0, "n_trades"] == 1
+    assert trade_log.loc[0, "pnl"] == pytest.approx(result.trade_log.loc[0, "pnl"])
+    assert trade_log.loc[0, "return_pct"] == pytest.approx(
+        result.trade_log.loc[0, "return_pct"]
+    )
+    assert "pnl_realized" in trade_log.columns
+    assert "pnl_unrealized" in trade_log.columns
+
+    assert metrics.loc[0, "n_trades"] == result.metrics["n_trades"]
+    assert metrics.loc[0, "total_return"] == pytest.approx(
+        result.metrics["total_return"]
+    )
+    assert metrics.loc[0, "win_rate"] == pytest.approx(result.metrics["win_rate"])
+
+    assert equity_curve_csv["equity"].iloc[-1] == pytest.approx(
+        result.equity_curve.iloc[-1]
+    )
     assert risk_summary.loc[0, "n_trades"] == 1
 
 
@@ -152,6 +168,8 @@ def test_backtest_time_signal_controls_exposure_path(tmp_path):
     assert result.trade_log.loc[0, "exit_price"] == pytest.approx(118.58)
     assert result.trade_log.loc[0, "quantity"] == pytest.approx(100000.0 / 110.0)
     assert result.trade_log.loc[0, "bars"] == 2
+    assert result.trade_log.loc[0, "pnl_realized"] == pytest.approx(7800.0)
+    assert result.trade_log.loc[0, "pnl_unrealized"] == pytest.approx(0.0)
     assert result.trade_log.loc[0, "pnl"] == pytest.approx(7800.0)
     assert result.trade_log.loc[0, "return_pct"] == pytest.approx((118.58 / 110.0) - 1.0)
     assert result.metrics["n_trades"] == 1
@@ -200,6 +218,8 @@ def test_backtest_time_signal_losing_trade_sets_zero_win_rate(tmp_path):
     )
 
     pd.testing.assert_series_equal(result.equity_curve, expected_equity)
+    assert result.trade_log.loc[0, "pnl_realized"] == pytest.approx(-20000.0)
+    assert result.trade_log.loc[0, "pnl_unrealized"] == pytest.approx(0.0)
     assert result.trade_log.loc[0, "pnl"] == pytest.approx(-20000.0)
     assert result.trade_log.loc[0, "pnl"] == pytest.approx(result.equity_curve.iloc[-1] - result.equity_curve.iloc[0])
     assert result.metrics["total_return"] == pytest.approx(-0.2)
@@ -223,6 +243,8 @@ def test_backtest_time_signal_all_zero_keeps_flat_equity_and_zero_win_rate(tmp_p
 
     pd.testing.assert_series_equal(result.equity_curve, expected_equity)
     assert result.trade_log.loc[0, "quantity"] == pytest.approx(0.0)
+    assert result.trade_log.loc[0, "pnl_realized"] == pytest.approx(0.0)
+    assert result.trade_log.loc[0, "pnl_unrealized"] == pytest.approx(0.0)
     assert result.trade_log.loc[0, "pnl"] == pytest.approx(0.0)
     assert result.metrics["total_return"] == pytest.approx(0.0)
     assert result.metrics["win_rate"] == pytest.approx(0.0)
@@ -303,7 +325,11 @@ def test_backtest_time_signal_partial_exposure_scales_equity_path(tmp_path):
     pd.testing.assert_series_equal(result.equity_curve, expected_equity)
     assert result.trade_log.loc[0, "entry_date"] == idx[0]
     assert result.trade_log.loc[0, "exit_date"] == idx[-1]
+    assert result.trade_log.loc[0, "quantity"] == pytest.approx(100000.0 / 100.0)
+    assert result.trade_log.loc[0, "pnl_realized"] == pytest.approx(8900.0)
+    assert result.trade_log.loc[0, "pnl_unrealized"] == pytest.approx(0.0)
     assert result.trade_log.loc[0, "pnl"] == pytest.approx(8900.0)
+    assert result.trade_log.loc[0, "bars"] == 3
     assert result.metrics["win_rate"] == pytest.approx(1.0)
 
 
@@ -326,6 +352,7 @@ def test_backtest_time_signal_break_even_trade_keeps_zero_win_rate(tmp_path):
     assert result.trade_log.loc[0, "pnl_realized"] == pytest.approx(0.0)
     assert result.trade_log.loc[0, "pnl_unrealized"] == pytest.approx(0.0)
     assert result.trade_log.loc[0, "pnl"] == pytest.approx(0.0)
+    assert result.trade_log.loc[0, "bars"] == 2
     assert result.trade_log.loc[0, "pnl"] == pytest.approx(result.equity_curve.iloc[-1] - result.equity_curve.iloc[0])
     assert result.metrics["total_return"] == pytest.approx(0.0)
     assert result.metrics["win_rate"] == pytest.approx(0.0)
@@ -461,3 +488,137 @@ def test_backtest_metrics_csv_has_canonical_columns(tmp_path):
         "n_trades",
         "warning_nonpositive_sharpe",
     ]
+
+def test_backtest_winning_trade_validates_pnl_fields(prices, tmp_path):
+    cfg = StrategyConfig(name="dummy", universe=list(prices.columns), lookback=5)
+    engine = BacktestEngine(output_dir=tmp_path)
+    result = engine.run(prices, DummyStrategy(cfg))
+
+    assert len(result.trade_log) == 1
+    assert result.trade_log.loc[0, "quantity"] == pytest.approx(1.0)
+    assert result.trade_log.loc[0, "pnl"] == pytest.approx(20.0)
+    assert result.trade_log.loc[0, "pnl_realized"] == pytest.approx(20.0)
+    assert result.trade_log.loc[0, "pnl_unrealized"] == pytest.approx(0.0)
+    assert result.trade_log.loc[0, "return_pct"] == pytest.approx(0.2)
+
+    trade_log_csv = validate_trade_log(pd.read_csv(tmp_path / "trade_log.csv"))
+    assert trade_log_csv.loc[0, "pnl"] == pytest.approx(20.0)
+    assert trade_log_csv.loc[0, "pnl_realized"] == pytest.approx(20.0)
+    assert trade_log_csv.loc[0, "pnl_unrealized"] == pytest.approx(0.0)
+    assert trade_log_csv.loc[0, "return_pct"] == pytest.approx(0.2)
+
+def test_backtest_losing_trade_validates_pnl_fields(tmp_path):
+    idx = pd.date_range("2024-01-01", periods=21, freq="D")
+    prices_down = pd.DataFrame(
+        {
+            "close": np.linspace(120, 100, len(idx)),
+        },
+        index=idx,
+    )
+
+    cfg = StrategyConfig(name="dummy", universe=list(prices_down.columns), lookback=5)
+    engine = BacktestEngine(output_dir=tmp_path)
+    result = engine.run(prices_down, DummyStrategy(cfg))
+
+    assert len(result.trade_log) == 1
+    assert result.trade_log.loc[0, "quantity"] == pytest.approx(1.0)
+    assert result.trade_log.loc[0, "pnl"] < 0
+    assert result.trade_log.loc[0, "pnl_realized"] < 0
+    assert result.trade_log.loc[0, "pnl_unrealized"] == pytest.approx(0.0)
+    assert result.trade_log.loc[0, "return_pct"] < 0
+
+    trade_log_csv = validate_trade_log(pd.read_csv(tmp_path / "trade_log.csv"))
+    assert trade_log_csv.loc[0, "pnl"] < 0
+    assert trade_log_csv.loc[0, "pnl_realized"] < 0
+    assert trade_log_csv.loc[0, "pnl_unrealized"] == pytest.approx(0.0)
+    assert trade_log_csv.loc[0, "return_pct"] < 0
+
+
+def test_backtest_outputs_time_signal_branch():
+    import pandas as pd
+    import pytest
+    from src.backtest import (
+        BacktestEngine,
+        validate_trade_log,
+        validate_metrics,
+        validate_risk_summary,
+    )
+
+    class FakeTimeSignalStrategy:
+        def __init__(self):
+            self.config = type("Cfg", (), {"name": "fake_time_signal"})()
+
+        def generate_signals(self, prices: pd.DataFrame) -> pd.Series:
+            return pd.Series([1.0, 1.0, 0.0, 0.0, 0.0], index=prices.index, dtype=float)
+
+    prices = pd.DataFrame(
+        {"close": [100.0, 110.0, 120.0, 115.0, 118.0]},
+        index=pd.to_datetime(
+            ["2024-01-01", "2024-01-02", "2024-01-03", "2024-01-04", "2024-01-05"]
+        ),
+    )
+
+    engine = BacktestEngine()
+    result = engine.run(prices, FakeTimeSignalStrategy())
+
+    output_dir = engine.output_dir
+    trade_log = validate_trade_log(pd.read_csv(output_dir / "trade_log.csv"))
+    metrics = validate_metrics(pd.read_csv(output_dir / "metrics.csv"))
+    risk_summary = validate_risk_summary(pd.read_csv(output_dir / "risk_summary.csv"))
+    equity_curve_csv = pd.read_csv(output_dir / "equity_curve.csv")
+
+    assert trade_log.loc[0, "strategy_tag"] == "fake_time_signal"
+    assert trade_log.loc[0, "quantity"] == pytest.approx(result.trade_log.loc[0, "quantity"])
+    assert trade_log.loc[0, "pnl"] == pytest.approx(result.trade_log.loc[0, "pnl"])
+    assert trade_log.loc[0, "return_pct"] == pytest.approx(result.trade_log.loc[0, "return_pct"])
+    assert trade_log.loc[0, "entry_price"] == pytest.approx(100.0)
+    assert trade_log.loc[0, "exit_price"] == pytest.approx(120.0)
+    assert trade_log.loc[0, "bars"] == 2
+    assert "pnl_realized" in trade_log.columns
+    assert "pnl_unrealized" in trade_log.columns
+
+    assert metrics.loc[0, "n_trades"] == result.metrics["n_trades"]
+    assert metrics.loc[0, "total_return"] == pytest.approx(result.metrics["total_return"])
+    assert metrics.loc[0, "win_rate"] == pytest.approx(result.metrics["win_rate"])
+
+    assert equity_curve_csv["equity"].iloc[-1] == pytest.approx(result.equity_curve.iloc[-1])
+    assert risk_summary.loc[0, "n_trades"] == 1
+
+
+def test_backtest_metrics_positive_time_signal_branch():
+    import pandas as pd
+    import pytest
+    from src.backtest import BacktestEngine, validate_metrics, validate_risk_summary
+
+    class FakeWinningTimeSignalStrategy:
+        def __init__(self):
+            self.config = type("Cfg", (), {"name": "fake_winning_time_signal"})()
+
+        def generate_signals(self, prices: pd.DataFrame) -> pd.Series:
+            return pd.Series([1.0, 1.0, 1.0, 0.0, 0.0], index=prices.index, dtype=float)
+
+    prices = pd.DataFrame(
+        {"close": [100.0, 110.0, 120.0, 130.0, 130.0]},
+        index=pd.to_datetime(
+            ["2024-01-01", "2024-01-02", "2024-01-03", "2024-01-04", "2024-01-05"]
+        ),
+    )
+
+    engine = BacktestEngine()
+    result = engine.run(prices, FakeWinningTimeSignalStrategy())
+
+    output_dir = engine.output_dir
+    metrics = validate_metrics(pd.read_csv(output_dir / "metrics.csv"))
+    risk_summary = validate_risk_summary(pd.read_csv(output_dir / "risk_summary.csv"))
+
+    assert metrics.loc[0, "n_trades"] == 1
+    assert metrics.loc[0, "total_return"] > 0
+    assert metrics.loc[0, "total_return"] == pytest.approx(result.metrics["total_return"])
+    assert metrics.loc[0, "win_rate"] == pytest.approx(1.0)
+    assert metrics.loc[0, "win_rate"] == pytest.approx(result.metrics["win_rate"])
+    assert metrics.loc[0, "max_drawdown"] == pytest.approx(0.0)
+    assert bool(metrics.loc[0, "warning_nonpositive_sharpe"]) is False
+
+    assert risk_summary.loc[0, "n_trades"] == 1
+    assert risk_summary.loc[0, "win_rate"] == pytest.approx(1.0)
+    assert risk_summary.loc[0, "sharpe"] == pytest.approx(result.metrics["sharpe"])
