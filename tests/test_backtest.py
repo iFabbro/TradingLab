@@ -59,6 +59,7 @@ def test_backtest_outputs(tmp_path, prices):
     assert result.trade_log.loc[0, "quantity"] == pytest.approx(1.0)
     assert result.trade_log.loc[0, "pnl"] == pytest.approx(20.0)
     assert result.trade_log.loc[0, "return_pct"] == pytest.approx(0.2)
+    assert result.trade_log.loc[0, "bars"] == 39
     assert result.metrics["n_trades"] == 1
     assert result.metrics["total_return"] == pytest.approx(20.0 / 100000.0)
     assert result.metrics["win_rate"] == pytest.approx(1.0)
