@@ -464,6 +464,7 @@ def test_backtest_time_signal_trade_log_is_coherent_with_equity_delta(tmp_path):
     result = engine.run(prices, strategy)
 
     trade = result.trade_log.loc[0]
+    assert trade["entry_date"] == idx[1]
     assert trade["quantity"] == pytest.approx(100000.0 / 120.0)
     assert trade["pnl_realized"] == pytest.approx(trade["pnl"])
     assert trade["pnl_unrealized"] == pytest.approx(0.0)
