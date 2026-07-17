@@ -582,6 +582,7 @@ def test_backtest_outputs_time_signal_branch():
     assert metrics.loc[0, "n_trades"] == result.metrics["n_trades"]
     assert metrics.loc[0, "total_return"] == pytest.approx(result.metrics["total_return"])
     assert metrics.loc[0, "win_rate"] == pytest.approx(result.metrics["win_rate"])
+    assert metrics.loc[0, "sharpe"] == pytest.approx(result.metrics["sharpe"])
 
     assert equity_curve_csv["equity"].iloc[-1] == pytest.approx(result.equity_curve.iloc[-1])
     assert risk_summary.loc[0, "n_trades"] == 1
