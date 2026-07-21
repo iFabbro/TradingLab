@@ -450,6 +450,7 @@ def test_backtest_trade_log_csv_has_canonical_columns(tmp_path):
         "return_pct",
         "bars",
     ]
+    assert trade_log_csv.loc[0, "exit_date"] == idx[-1].strftime("%Y-%m-%d")
 
 
 
