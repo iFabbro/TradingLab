@@ -129,6 +129,7 @@ def test_backtest_loss_path_updates_metrics(tmp_path):
     assert result.metrics["total_return"] == pytest.approx(-20.0 / 100000.0)
     assert result.metrics["win_rate"] == pytest.approx(0.0)
     assert result.metrics["max_drawdown"] > 0.0
+    assert result.metrics["warning_low_pf"] is True
     assert result.equity_curve.iloc[-1] == pytest.approx(99980.0)
 
 def test_backtest_mark_to_market_equity_curve_has_drawdown_and_nonzero_sharpe(tmp_path):
