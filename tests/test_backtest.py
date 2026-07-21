@@ -586,6 +586,11 @@ def test_backtest_outputs_time_signal_branch():
 
     assert equity_curve_csv["equity"].iloc[-1] == pytest.approx(result.equity_curve.iloc[-1])
     assert risk_summary.loc[0, "n_trades"] == 1
+    assert risk_summary.loc[0, "win_rate"] == pytest.approx(1.0)
+    assert risk_summary.loc[0, "profit_factor"] == pytest.approx(float("inf"))
+    assert risk_summary.loc[0, "avg_rr"] == pytest.approx(float("inf"))
+    assert risk_summary.loc[0, "sortino"] == pytest.approx(0.0)
+    assert bool(risk_summary.loc[0, "warning_nonpositive_sharpe"]) is False
 
 
 def test_backtest_metrics_positive_time_signal_branch():

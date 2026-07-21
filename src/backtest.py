@@ -178,7 +178,8 @@ class BacktestEngine:
         metrics_out = validate_metrics(pd.DataFrame([metrics]))
         rets = equity_curve.pct_change().fillna(0.0)
         downside = rets[rets < 0]
-        sortino = 0.0 if downside.std(ddof=0) == 0 else np.sqrt(252) * rets.mean() / downside.std(ddof=0)
+        downside_std = downside.std(ddof=0)
+        sortino = 0.0 if pd.isna(downside_std) or downside_std == 0 else np.sqrt(252) * rets.mean() / downside_std
 
         risk_summary_out = validate_risk_summary(
             pd.DataFrame([{
