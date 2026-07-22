@@ -506,10 +506,12 @@ def test_backtest_winning_trade_validates_pnl_fields(prices, tmp_path):
     assert result.trade_log.loc[0, "return_pct"] == pytest.approx(0.2)
 
     trade_log_csv = validate_trade_log(pd.read_csv(tmp_path / "trade_log.csv"))
+    metrics_csv = validate_metrics(pd.read_csv(tmp_path / "metrics.csv"))
     assert trade_log_csv.loc[0, "pnl"] == pytest.approx(20.0)
     assert trade_log_csv.loc[0, "pnl_realized"] == pytest.approx(20.0)
     assert trade_log_csv.loc[0, "pnl_unrealized"] == pytest.approx(0.0)
     assert trade_log_csv.loc[0, "return_pct"] == pytest.approx(0.2)
+    assert trade_log_csv["pnl"].sum() == pytest.approx(metrics_csv.loc[0, "total_return"] * 100000.0)
 
 def test_backtest_losing_trade_validates_pnl_fields(tmp_path):
     idx = pd.date_range("2024-01-01", periods=21, freq="D")
