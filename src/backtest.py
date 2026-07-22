@@ -169,6 +169,7 @@ class BacktestEngine:
             "win_rate": win_rate,
             "profit_factor": profit_factor,
             "n_trades": int(len(trade_log)),
+            "warning_low_pf": bool(profit_factor < 1.2),
             "warning_nonpositive_sharpe": bool(sharpe <= 0.0),
         }
 
@@ -191,7 +192,7 @@ class BacktestEngine:
                 "avg_rr": float("inf") if trade_log.empty or float(abs(trade_log["pnl"].clip(upper=0).sum())) == 0 else float(trade_log["pnl"].clip(lower=0).mean() / abs(trade_log["pnl"].clip(upper=0).mean())) if float(trade_log["pnl"].clip(upper=0).mean()) != 0 else float("inf"),
                 "sharpe": float(metrics.get("sharpe", 0.0)),
                 "sortino": float(sortino),
-                "warning_low_pf": bool(False),
+                "warning_low_pf": bool(float(metrics.get("profit_factor", float("inf"))) < 1.2),
                 "warning_nonpositive_sharpe": bool(metrics.get("warning_nonpositive_sharpe", False)),
             }])
         )
