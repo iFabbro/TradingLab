@@ -55,6 +55,7 @@ METRICS_COLUMNS = [
     "sharpe",
     "max_drawdown",
     "win_rate",
+    "profit_factor",
     "n_trades",
     "warning_nonpositive_sharpe",
 ]

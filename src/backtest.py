@@ -160,12 +160,14 @@ class BacktestEngine:
         drawdown = (equity_curve / running_peak - 1.0).fillna(0.0) if len(equity_curve) else pd.Series(dtype=float)
         max_drawdown = abs(float(drawdown.min())) if len(drawdown) else 0.0
         win_rate = float((trade_log["pnl"] > 0).mean()) if not trade_log.empty else 0.0
+        profit_factor = float("inf") if trade_log.empty or float(abs(trade_log["pnl"].clip(upper=0).sum())) == 0 else float(trade_log["pnl"].clip(lower=0).sum() / abs(trade_log["pnl"].clip(upper=0).sum()))
         return {
             "total_return": float(total_return),
             "cagr": 0.0,
             "sharpe": float(sharpe),
             "max_drawdown": max_drawdown,
             "win_rate": win_rate,
+            "profit_factor": profit_factor,
             "n_trades": int(len(trade_log)),
             "warning_nonpositive_sharpe": bool(sharpe <= 0.0),
         }

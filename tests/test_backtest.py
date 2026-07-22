@@ -88,6 +88,7 @@ def test_backtest_outputs(tmp_path, prices):
         result.metrics["total_return"]
     )
     assert metrics.loc[0, "win_rate"] == pytest.approx(result.metrics["win_rate"])
+    assert metrics.loc[0, "max_drawdown"] == pytest.approx(result.metrics["max_drawdown"])
 
     assert equity_curve_csv["equity"].iloc[-1] == pytest.approx(
         result.equity_curve.iloc[-1]
@@ -586,7 +587,9 @@ def test_backtest_outputs_time_signal_branch():
     assert metrics.loc[0, "n_trades"] == result.metrics["n_trades"]
     assert metrics.loc[0, "total_return"] == pytest.approx(result.metrics["total_return"])
     assert metrics.loc[0, "win_rate"] == pytest.approx(result.metrics["win_rate"])
+    assert metrics.loc[0, "max_drawdown"] == pytest.approx(result.metrics["max_drawdown"])
     assert metrics.loc[0, "sharpe"] == pytest.approx(result.metrics["sharpe"])
+    assert metrics.loc[0, "profit_factor"] == pytest.approx(result.metrics["profit_factor"])
 
     assert equity_curve_csv["equity"].iloc[-1] == pytest.approx(result.equity_curve.iloc[-1])
     assert risk_summary.loc[0, "n_trades"] == 1
@@ -628,6 +631,7 @@ def test_backtest_metrics_positive_time_signal_branch():
     assert metrics.loc[0, "total_return"] == pytest.approx(result.metrics["total_return"])
     assert metrics.loc[0, "win_rate"] == pytest.approx(1.0)
     assert metrics.loc[0, "win_rate"] == pytest.approx(result.metrics["win_rate"])
+    assert metrics.loc[0, "max_drawdown"] == pytest.approx(result.metrics["max_drawdown"])
     assert metrics.loc[0, "max_drawdown"] == pytest.approx(0.0)
     assert bool(metrics.loc[0, "warning_nonpositive_sharpe"]) is False
 
