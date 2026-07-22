@@ -20,3 +20,10 @@ def test_drawdown_summary_keys():
     summary = drawdown_summary(RETURNS)
     for k in ["max_drawdown", "avg_drawdown", "max_drawdown_duration", "calmar_ratio", "final_equity"]:
         assert k in summary
+
+
+def test_flat_returns_have_zero_drawdown_and_infinite_calmar():
+    summary = drawdown_summary([0.0, 0.0, 0.0])
+    assert max_drawdown([0.0, 0.0, 0.0]) == pytest.approx(0.0)
+    assert summary["max_drawdown"] == pytest.approx(0.0)
+    assert summary["calmar_ratio"] == float("inf")

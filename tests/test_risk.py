@@ -30,3 +30,9 @@ def test_risk_summary_shows_nonpositive_sharpe_warning_flag():
 
 def test_empty_returns():
     assert win_rate([]) == 0.0
+
+
+def test_risk_summary_triggers_warnings_on_bad_returns():
+    summary = risk_summary([-0.10, -0.05, -0.02])
+    assert summary["warning_low_pf"] is True
+    assert summary["warning_nonpositive_sharpe"] is True
