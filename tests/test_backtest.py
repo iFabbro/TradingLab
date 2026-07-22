@@ -490,6 +490,7 @@ def test_backtest_metrics_csv_has_canonical_columns(tmp_path):
         "sharpe",
         "max_drawdown",
         "win_rate",
+        "profit_factor",
         "n_trades",
         "warning_nonpositive_sharpe",
     ]
@@ -597,6 +598,7 @@ def test_backtest_outputs_time_signal_branch():
     assert risk_summary.loc[0, "profit_factor"] == pytest.approx(float("inf"))
     assert risk_summary.loc[0, "avg_rr"] == pytest.approx(float("inf"))
     assert risk_summary.loc[0, "sortino"] == pytest.approx(0.0)
+    assert bool(risk_summary.loc[0, "warning_low_pf"]) is False
     assert bool(risk_summary.loc[0, "warning_nonpositive_sharpe"]) is False
 
 
