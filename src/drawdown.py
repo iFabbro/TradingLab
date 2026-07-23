@@ -44,10 +44,12 @@ def calmar_ratio(returns: Sequence[float]) -> float:
 def drawdown_summary(returns: Sequence[float]) -> dict:
     eq = equity_curve(returns)
     dd = drawdown_series(eq)
+    max_dd = float(np.min(dd))
     return {
-        "max_drawdown": float(np.min(dd)),
+        "max_drawdown": max_dd,
         "avg_drawdown": float(np.mean(dd[dd < 0])) if np.any(dd < 0) else 0.0,
         "max_drawdown_duration": max_drawdown_duration(returns),
         "calmar_ratio": calmar_ratio(returns),
         "final_equity": float(eq[-1]) if len(eq) > 0 else 1.0,
+        "warning_high_drawdown": bool(max_dd <= -0.2),
     }

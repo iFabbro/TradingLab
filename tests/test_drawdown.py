@@ -27,3 +27,8 @@ def test_flat_returns_have_zero_drawdown_and_infinite_calmar():
     assert max_drawdown([0.0, 0.0, 0.0]) == pytest.approx(0.0)
     assert summary["max_drawdown"] == pytest.approx(0.0)
     assert summary["calmar_ratio"] == float("inf")
+
+
+def test_drawdown_summary_can_warn_on_large_drawdown():
+    summary = drawdown_summary([0.5, -0.5, 0.0])
+    assert summary["max_drawdown"] <= -0.3333333333
