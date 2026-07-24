@@ -30,3 +30,8 @@ def test_prob_loss_50pct_range():
 def test_montecarlo_summary_shows_loss_warning_flag():
     summary = montecarlo_summary(RETURNS, n_simulations=500, seed=42)
     assert "warning_high_loss_prob" in summary
+
+
+def test_montecarlo_summary_warns_on_high_loss_probability():
+    summary = montecarlo_summary([-0.4, -0.3, -0.2, -0.1], n_simulations=500, seed=42)
+    assert summary["warning_high_loss_prob"] is True
