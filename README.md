@@ -1,12 +1,12 @@
-# Trading-Lab
+# TradingLab
 
-Trading-Lab is a modular quantitative trading lab designed to support the full research-to-execution workflow: data ingestion, strategy generation, backtesting, risk analysis, regime detection, multi-factor modeling, optimization, portfolio construction, trade setup generation, Monte Carlo simulation, drawdown analysis, macro-based strategy, and alpha edge detection.
+TradingLab is a modular quantitative trading lab designed to support the full research-to-execution workflow: data ingestion, strategy generation, backtesting, risk analysis, regime detection, multi-factor modeling, optimization, portfolio construction, trade setup generation, Monte Carlo simulation, drawdown analysis, macro-based strategy, and alpha edge detection.
 
 The project is organized as a lightweight micro-platform with reusable Python modules, CLI-driven scripts, and a roadmap-based development flow.
 
 ## Project status
 
-The roadmap is fully implemented.
+The roadmap is currently implemented at a high level, with the codebase organized around the core research workflow.
 
 Completed areas include:
 - data layer and setup;
