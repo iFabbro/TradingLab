@@ -207,6 +207,8 @@ def draw_risk_panel(stdscr, y: int, x: int, w: int, risk: dict[str, Any]) -> Non
         warn = "pf"
     if pick(risk, "warning_nonpositive_sharpe"):
         warn = "pf/sh" if warn != "ok" else "sh"
+    if pick(risk, "warning_high_drawdown"):
+        warn = f"{warn}/dd" if warn != "ok" else "dd"
     safe_add(
         stdscr,
         y + 1,
