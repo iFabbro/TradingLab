@@ -1,31 +1,38 @@
 # TradingLab
 
-TradingLab is a modular quantitative trading lab designed to support the full research-to-execution workflow: data ingestion, strategy generation, backtesting, risk analysis, regime detection, multi-factor modeling, optimization, portfolio construction, trade setup generation, Monte Carlo simulation, drawdown analysis, macro-based strategy, and alpha edge detection.
+TradingLab is a modular quantitative trading lab for the full research-to-execution workflow: data ingestion, strategy generation, backtesting, risk analysis, regime detection, multi-factor modeling, optimization, portfolio construction, trade setup generation, Monte Carlo simulation, drawdown analysis, macro-based strategy, and alpha edge detection.
 
-The project is organized as a lightweight micro-platform with reusable Python modules, CLI-driven scripts, and a roadmap-based development flow.
+The project is organized as a lightweight Python micro-platform with reusable modules, CLI-driven scripts, and a roadmap-based development flow.
 
-## Project status
+## Project Status
 
-The roadmap is currently implemented at a high level, with the codebase organized around the core research workflow.
+TradingLab is actively developed around the main quantitative research workflow.
 
-Completed areas include:
-- data layer and setup;
-- strategy generation;
-- backtesting engine;
-- risk/reward analysis;
+TradingLab includes modules for:
+- data ingestion and setup;
+- strategy generation and validation;
+- backtesting and performance analysis;
+- risk and reward management;
 - market regime detection;
-- multi-factor strategy;
+- multi-factor strategy logic;
 - strategy optimization;
 - portfolio construction;
 - trade setup generation;
 - Monte Carlo simulation;
 - drawdown analysis;
-- macro-based strategy;
+- macro-based strategy mapping;
 - alpha edge detection.
 
-The codebase now serves as a compact framework for quantitative research, systematic strategy design, and repeatable analysis workflows.
+The codebase is designed as a compact framework for systematic research, repeatable analysis, and controlled execution workflows.
 
-## Repository structure
+## Tech Stack
+
+- Python 3.10+.
+- Pytest.
+- CLI-based workflow scripts.
+- Modular source layout under `src/`.
+
+## Repository Structure
 
 ```text
 src/
@@ -61,10 +68,10 @@ reports/
 data/
 ```
 
-## Main capabilities
+## Key Features
 
 - Download and cache market data.
-- Generate and evaluate strategies.
+- Generate and evaluate trading strategies.
 - Run backtests and compute performance metrics.
 - Analyze risk, drawdowns, and trade statistics.
 - Detect market regimes and adapt logic accordingly.
@@ -76,9 +83,19 @@ data/
 - Analyze macro regimes and map them to exposure profiles.
 - Detect alpha edges and convert them into actionable playbooks.
 
-## How to run
+## Quick Start
 
-Typical workflow commands:
+Clone the repository and set up a virtual environment:
+
+```bash
+git clone https://github.com/iFabbro/TradingLab.git
+cd TradingLab
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
+Run a sample workflow:
 
 ```bash
 python scripts/download_data.py --ticker BTC-USD --start 2016-01-01 --timeframe 1d
@@ -88,25 +105,38 @@ python scripts/run_montecarlo.py --strategy-id ma_crossover --ticker BTC-USD
 python scripts/generate_trades.py --market crypto --ticker BTC-USD
 ```
 
+## Usage
+
+TradingLab is intended for iterative quantitative research. Start by downloading data, then run a backtest, inspect risk metrics, and refine strategy logic through the available scripts and modules.
+
+For example, a typical workflow is:
+1. download historical data;
+2. validate a strategy with backtesting;
+3. inspect risk and drawdown behavior;
+4. test robustness with Monte Carlo analysis;
+5. generate trade setups or macro-aware signals.
+
 ## Testing
 
-The project uses `pytest` for module-level verification.
-
-Run the full test suite with:
+Run the test suite with:
 
 ```bash
 pytest -v
 ```
 
-## Development approach
+## Roadmap
 
-The repository follows a roadmap-driven structure:
-- each major capability is implemented as a dedicated module;
-- each module can be tested independently;
-- CLI scripts expose reproducible terminal workflows;
-- features are developed in focused threads to avoid scope creep.
+The repository follows a roadmap-driven development model, where each major capability is implemented as an independent module and tested in isolation.
 
-## Notes
+## Contributing
 
-This project is intended as a practical quant research environment, not a toy example.
-The emphasis is on clarity, modularity, and repeatable execution.
+Contributions are welcome. If you want to suggest an improvement, open an issue or submit a pull request.
+
+Before contributing, please make sure:
+- the change is focused;
+- tests still pass;
+- the README and docs stay consistent with the codebase.
+
+## License
+
+This project is licensed under the MIT License. See the `LICENSE` file for details.
