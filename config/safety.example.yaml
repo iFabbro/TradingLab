@@ -1,0 +1,6 @@
+kill_switch: false
+daily_loss_limit: 0.0
+max_exposure: 0.0
+max_position_size: 0
+paper_live: false
+dry_run: true
