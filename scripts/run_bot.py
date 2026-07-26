@@ -13,6 +13,7 @@ if str(ROOT) not in sys.path:
 
 from src.execution import ExecutionEngine
 from src.safety import SafetyPolicy, evaluate_safety
+from src.bot_report import build_bot_report, format_bot_report
 
 
 def _load_risk_check(path: str | None) -> dict:
@@ -31,7 +32,10 @@ def _load_risk_check(path: str | None) -> dict:
 def _load_safety_config(path: str | None) -> dict:
     if not path:
         return {}
-    return yaml.safe_load(Path(path).read_text()) or {}
+    p = Path(path)
+    if not p.exists():
+        return {}
+    return yaml.safe_load(p.read_text()) or {}
 
 
 def main() -> None:
@@ -68,23 +72,32 @@ def main() -> None:
         requested_position_size=args.position_size,
     )
     if not safety["allowed"]:
-        print("status: blocked")
-        print(f"blocked_reasons: {','.join(safety['blocked_reasons'])}")
-        print(f"dry_run: {safety['dry_run']}")
-        print(f"paper_live: {safety['paper_live']}")
-        print(f"risk_allowed: {risk_check['allowed']}")
+        report = build_bot_report(
+            ticker=args.ticker,
+            side=args.side,
+            quantity=0,
+            status="blocked",
+            dry_run=safety["dry_run"],
+            paper_live=safety["paper_live"],
+            risk_allowed=risk_check["allowed"],
+            blocked_reasons=safety["blocked_reasons"],
+        )
+        print(format_bot_report(report))
         raise SystemExit(1)
 
     risk_check["allowed"] = bool(risk_check.get("allowed", False)) and safety["allowed"]
     order = engine.build_order(signal=signal, risk_check=risk_check, position_size=args.position_size)
-
-    print(f"ticker: {order['ticker']}")
-    print(f"side: {order['side']}")
-    print(f"quantity: {order['quantity']}")
-    print(f"status: {order['status']}")
-    print(f"dry_run: {safety['dry_run']}")
-    print(f"paper_live: {safety['paper_live']}")
-    print(f"risk_allowed: {risk_check['allowed']}")
+    report = build_bot_report(
+        ticker=order["ticker"],
+        side=order["side"],
+        quantity=order["quantity"],
+        status=order["status"],
+        dry_run=safety["dry_run"],
+        paper_live=safety["paper_live"],
+        risk_allowed=risk_check["allowed"],
+        blocked_reasons=safety["blocked_reasons"] if order["status"] == "blocked" else [],
+    )
+    print(format_bot_report(report))
 
 
 if __name__ == "__main__":
