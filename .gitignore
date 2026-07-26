@@ -40,3 +40,6 @@ reports/*.csv
 data/demo/
 reports/minimal_test/
 *.bak
+
+# runtime bot state
+config/bot_state.json
