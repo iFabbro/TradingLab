@@ -61,3 +61,8 @@ def risk_summary(returns: Sequence[float], risk_free: float = 0.0) -> dict:
         "warning_low_pf": pf < 1.2,
         "warning_nonpositive_sharpe": sharpe <= 0.0,
     }
+
+
+
+def risk_summary_payload(returns, risk_free: float = 0.0) -> dict:
+    return risk_summary(returns, risk_free)
