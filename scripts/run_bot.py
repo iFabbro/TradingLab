@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import yaml
 import pandas as pd
 import sys
 from pathlib import Path
@@ -27,6 +28,12 @@ def _load_risk_check(path: str | None) -> dict:
     return data
 
 
+def _load_safety_config(path: str | None) -> dict:
+    if not path:
+        return {}
+    return yaml.safe_load(Path(path).read_text()) or {}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run autonomous execution bot")
     parser.add_argument("--ticker", required=True)
@@ -38,21 +45,24 @@ def main() -> None:
     parser.add_argument("--max-exposure", type=float, default=0.0)
     parser.add_argument("--max-position-size", type=int, default=0)
     parser.add_argument("--daily-loss-limit", type=float, default=0.0)
+    parser.add_argument("--safety-config", default="config/safety.yaml")
     parser.add_argument("--risk-summary-file", default=None)
     args = parser.parse_args()
 
     engine = ExecutionEngine()
     signal = {"ticker": args.ticker, "side": args.side}
     risk_check = _load_risk_check(args.risk_summary_file)
+    safety_cfg = _load_safety_config(args.safety_config)
+    policy = SafetyPolicy(
+        kill_switch=bool(safety_cfg.get("kill_switch", False) or args.kill_switch),
+        daily_loss_limit=float(safety_cfg.get("daily_loss_limit", 0.0) or args.daily_loss_limit),
+        max_exposure=float(safety_cfg.get("max_exposure", 0.0) or args.max_exposure),
+        max_position_size=int(safety_cfg.get("max_position_size", 0) or args.max_position_size),
+        paper_live=bool(safety_cfg.get("paper_live", False) or args.paper_live),
+        dry_run=bool(safety_cfg.get("dry_run", True) or args.dry_run),
+    )
     safety = evaluate_safety(
-        SafetyPolicy(
-            kill_switch=args.kill_switch,
-            max_exposure=args.max_exposure,
-            max_position_size=args.max_position_size,
-            paper_live=args.paper_live,
-            dry_run=args.dry_run,
-            daily_loss_limit=args.daily_loss_limit,
-        ),
+        policy,
         current_daily_loss=float(risk_check.get("daily_loss", 0.0)),
         current_exposure=float(risk_check.get("current_exposure", 0.0)),
         requested_position_size=args.position_size,
