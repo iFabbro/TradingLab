@@ -116,6 +116,17 @@ For example, a typical workflow is:
 4. test robustness with Monte Carlo analysis;
 5. generate trade setups or macro-aware signals.
 
+
+## Safety and configuration
+
+The autonomous bot uses a configurable safety policy. Copy the example config to a local file before running the bot:
+
+```bash
+cp config/safety.example.yaml config/safety.yaml
+```
+
+`config/safety.yaml` is ignored by Git so you can keep local overrides such as kill switch, daily loss limit, max exposure, and paper-live or dry-run preferences.
+
 ## Testing
 
 Run the test suite with:
