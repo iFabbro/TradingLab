@@ -14,6 +14,7 @@ if str(ROOT) not in sys.path:
 from src.execution import ExecutionEngine
 from src.safety import SafetyPolicy, evaluate_safety
 from src.bot_report import build_bot_report, format_bot_report
+from src.bot_state import load_bot_state, save_bot_state
 
 
 def _load_risk_check(path: str | None) -> dict:
@@ -50,6 +51,7 @@ def main() -> None:
     parser.add_argument("--max-position-size", type=int, default=0)
     parser.add_argument("--daily-loss-limit", type=float, default=0.0)
     parser.add_argument("--safety-config", default="config/safety.yaml")
+    parser.add_argument("--state-file", default="config/bot_state.json")
     parser.add_argument("--risk-summary-file", default=None)
     args = parser.parse_args()
 
@@ -57,18 +59,20 @@ def main() -> None:
     signal = {"ticker": args.ticker, "side": args.side}
     risk_check = _load_risk_check(args.risk_summary_file)
     safety_cfg = _load_safety_config(args.safety_config)
+    state = load_bot_state(args.state_file)
     policy = SafetyPolicy(
         kill_switch=bool(safety_cfg.get("kill_switch", False) or args.kill_switch),
-        daily_loss_limit=float(safety_cfg.get("daily_loss_limit", 0.0) or args.daily_loss_limit),
-        max_exposure=float(safety_cfg.get("max_exposure", 0.0) or args.max_exposure),
-        max_position_size=int(safety_cfg.get("max_position_size", 0) or args.max_position_size),
+        daily_loss_limit=float(safety_cfg.get("daily_loss_limit", 0.0) or args.daily_loss_limit or state.get("daily_loss_limit", 0.0)),
+        max_exposure=float(safety_cfg.get("max_exposure", 0.0) or args.max_exposure or state.get("max_exposure", 0.0)),
+        max_position_size=int(safety_cfg.get("max_position_size", 0) or args.max_position_size or state.get("max_position_size", 0)),
         paper_live=bool(safety_cfg.get("paper_live", False) or args.paper_live),
         dry_run=bool(safety_cfg.get("dry_run", True) or args.dry_run),
     )
+    current_daily_loss = float(risk_check.get("daily_loss", state.get("daily_loss", 0.0)))
     safety = evaluate_safety(
         policy,
-        current_daily_loss=float(risk_check.get("daily_loss", 0.0)),
-        current_exposure=float(risk_check.get("current_exposure", 0.0)),
+        current_daily_loss=current_daily_loss,
+        current_exposure=float(risk_check.get("current_exposure", state.get("current_exposure", 0.0))),
         requested_position_size=args.position_size,
     )
     if not safety["allowed"]:
@@ -82,6 +86,17 @@ def main() -> None:
             risk_allowed=risk_check["allowed"],
             blocked_reasons=safety["blocked_reasons"],
         )
+        state.update({
+            "last_status": "blocked",
+            "last_report": report,
+            "last_run_at": __import__("datetime").datetime.now(__import__("datetime").UTC).isoformat(),
+            "daily_loss": current_daily_loss,
+            "daily_loss_limit": policy.daily_loss_limit,
+            "max_exposure": policy.max_exposure,
+            "max_position_size": policy.max_position_size,
+            "current_exposure": float(risk_check.get("current_exposure", state.get("current_exposure", 0.0))),
+        })
+        save_bot_state(args.state_file, state)
         print(format_bot_report(report))
         raise SystemExit(1)
 
@@ -97,6 +112,17 @@ def main() -> None:
         risk_allowed=risk_check["allowed"],
         blocked_reasons=safety["blocked_reasons"] if order["status"] == "blocked" else [],
     )
+    state.update({
+        "last_status": order["status"],
+        "last_report": report,
+        "last_run_at": __import__("datetime").datetime.now(__import__("datetime").UTC).isoformat(),
+        "daily_loss": current_daily_loss,
+        "daily_loss_limit": policy.daily_loss_limit,
+        "max_exposure": policy.max_exposure,
+        "max_position_size": policy.max_position_size,
+        "current_exposure": float(risk_check.get("current_exposure", state.get("current_exposure", 0.0))),
+    })
+    save_bot_state(args.state_file, state)
     print(format_bot_report(report))
 
 

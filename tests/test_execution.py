@@ -143,3 +143,55 @@ def test_run_bot_shows_paper_live_flag(tmp_path, capsys):
 
     out = capsys.readouterr().out
     assert "paper_live: True" in out
+
+
+def test_run_bot_persists_state(tmp_path, capsys):
+    from scripts import run_bot
+    import sys, json
+
+    risk = tmp_path / "risk_summary.csv"
+    state = tmp_path / "bot_state.json"
+    pd.DataFrame(
+        [
+            {
+                "n_trades": 10,
+                "win_rate": 0.5,
+                "profit_factor": 1.5,
+                "avg_rr": 1.2,
+                "sharpe": 0.8,
+                "sortino": 1.1,
+                "warning_low_pf": False,
+                "warning_nonpositive_sharpe": False,
+                "daily_loss": 0.0,
+                "current_exposure": 0.0,
+            }
+        ]
+    ).to_csv(risk, index=False)
+
+    old = sys.argv
+    sys.argv = [
+        "run_bot.py",
+        "--ticker",
+        "TEST",
+        "--side",
+        "long",
+        "--position-size",
+        "2",
+        "--paper-live",
+        "--risk-summary-file",
+        str(risk),
+        "--state-file",
+        str(state),
+    ]
+    try:
+        run_bot.main()
+    finally:
+        sys.argv = old
+
+    out = capsys.readouterr().out
+    assert "status: pending" in out
+    assert state.exists()
+    data = json.loads(state.read_text())
+    assert data["last_status"] == "pending"
+    assert data["daily_loss_limit"] >= 0
+    assert "last_report" in data
