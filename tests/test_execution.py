@@ -50,3 +50,96 @@ def test_load_risk_check_accepts_csv(tmp_path):
     assert risk_check["warning_low_pf"] is False
     assert risk_check["warning_nonpositive_sharpe"] is False
     assert risk_check["allowed"] is True
+
+
+def test_run_bot_blocks_on_kill_switch(tmp_path, capsys):
+    from scripts import run_bot
+    import sys
+
+    path = tmp_path / "risk_summary.csv"
+    pd.DataFrame(
+        [
+            {
+                "n_trades": 10,
+                "win_rate": 0.5,
+                "profit_factor": 1.5,
+                "avg_rr": 1.2,
+                "sharpe": 0.8,
+                "sortino": 1.1,
+                "warning_low_pf": False,
+                "warning_nonpositive_sharpe": False,
+                "daily_loss": 0.0,
+                "current_exposure": 0.0,
+            }
+        ]
+    ).to_csv(path, index=False)
+
+    old = sys.argv
+    sys.argv = [
+        "run_bot.py",
+        "--ticker",
+        "TEST",
+        "--side",
+        "long",
+        "--position-size",
+        "2",
+        "--dry-run",
+        "--kill-switch",
+        "--risk-summary-file",
+        str(path),
+    ]
+    try:
+        try:
+            run_bot.main()
+        except SystemExit as exc:
+            assert exc.code == 1
+    finally:
+        sys.argv = old
+
+    out = capsys.readouterr().out
+    assert "status: blocked" in out
+    assert "kill_switch" in out
+
+
+def test_run_bot_shows_paper_live_flag(tmp_path, capsys):
+    from scripts import run_bot
+    import sys
+
+    path = tmp_path / "risk_summary.csv"
+    pd.DataFrame(
+        [
+            {
+                "n_trades": 10,
+                "win_rate": 0.5,
+                "profit_factor": 1.5,
+                "avg_rr": 1.2,
+                "sharpe": 0.8,
+                "sortino": 1.1,
+                "warning_low_pf": False,
+                "warning_nonpositive_sharpe": False,
+                "daily_loss": 0.0,
+                "current_exposure": 0.0,
+            }
+        ]
+    ).to_csv(path, index=False)
+
+    old = sys.argv
+    sys.argv = [
+        "run_bot.py",
+        "--ticker",
+        "TEST",
+        "--side",
+        "long",
+        "--position-size",
+        "2",
+        "--paper-live",
+        "--risk-summary-file",
+        str(path),
+    ]
+    try:
+        run_bot.main()
+    finally:
+        sys.argv = old
+
+    out = capsys.readouterr().out
+    assert "paper_live: True" in out
