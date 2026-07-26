@@ -11,6 +11,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from src.execution import ExecutionEngine
+from src.safety import SafetyPolicy, evaluate_safety
 
 
 def _load_risk_check(path: str | None) -> dict:
@@ -32,19 +33,47 @@ def main() -> None:
     parser.add_argument("--side", choices=["long", "short"], required=True)
     parser.add_argument("--position-size", type=int, required=True)
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--paper-live", action="store_true")
+    parser.add_argument("--kill-switch", action="store_true")
+    parser.add_argument("--max-exposure", type=float, default=0.0)
+    parser.add_argument("--max-position-size", type=int, default=0)
+    parser.add_argument("--daily-loss-limit", type=float, default=0.0)
     parser.add_argument("--risk-summary-file", default=None)
     args = parser.parse_args()
 
     engine = ExecutionEngine()
     signal = {"ticker": args.ticker, "side": args.side}
     risk_check = _load_risk_check(args.risk_summary_file)
+    safety = evaluate_safety(
+        SafetyPolicy(
+            kill_switch=args.kill_switch,
+            max_exposure=args.max_exposure,
+            max_position_size=args.max_position_size,
+            paper_live=args.paper_live,
+            dry_run=args.dry_run,
+            daily_loss_limit=args.daily_loss_limit,
+        ),
+        current_daily_loss=float(risk_check.get("daily_loss", 0.0)),
+        current_exposure=float(risk_check.get("current_exposure", 0.0)),
+        requested_position_size=args.position_size,
+    )
+    if not safety["allowed"]:
+        print("status: blocked")
+        print(f"blocked_reasons: {','.join(safety['blocked_reasons'])}")
+        print(f"dry_run: {safety['dry_run']}")
+        print(f"paper_live: {safety['paper_live']}")
+        print(f"risk_allowed: {risk_check['allowed']}")
+        raise SystemExit(1)
+
+    risk_check["allowed"] = bool(risk_check.get("allowed", False)) and safety["allowed"]
     order = engine.build_order(signal=signal, risk_check=risk_check, position_size=args.position_size)
 
     print(f"ticker: {order['ticker']}")
     print(f"side: {order['side']}")
     print(f"quantity: {order['quantity']}")
     print(f"status: {order['status']}")
-    print(f"dry_run: {args.dry_run}")
+    print(f"dry_run: {safety['dry_run']}")
+    print(f"paper_live: {safety['paper_live']}")
     print(f"risk_allowed: {risk_check['allowed']}")
 
 
