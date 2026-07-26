@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import pandas as pd
 import sys
 from pathlib import Path
 
@@ -15,7 +16,11 @@ from src.execution import ExecutionEngine
 def _load_risk_check(path: str | None) -> dict:
     if not path:
         return {"allowed": True}
-    data = json.loads(Path(path).read_text())
+    p = Path(path)
+    if p.suffix.lower() == ".csv":
+        data = pd.read_csv(p).iloc[0].to_dict()
+    else:
+        data = json.loads(p.read_text())
     allowed = not bool(data.get("warning_low_pf")) and not bool(data.get("warning_nonpositive_sharpe"))
     data["allowed"] = allowed
     return data
