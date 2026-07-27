@@ -1,0 +1,12 @@
+{
+  "last_status": "pending",
+  "last_report": {
+    "ticker": "TEST",
+    "side": "long",
+    "quantity": 2,
+    "status": "pending"
+  },
+  "daily_loss_limit": 0.0,
+  "max_exposure": 0.0,
+  "updated_at": "2026-07-27T00:00:00Z"
+}
