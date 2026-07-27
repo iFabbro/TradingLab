@@ -1,153 +1,107 @@
 # TradingLab
 
-TradingLab is a modular quantitative trading lab for the full research-to-execution workflow: data ingestion, strategy generation, backtesting, risk analysis, regime detection, multi-factor modeling, optimization, portfolio construction, trade setup generation, Monte Carlo simulation, drawdown analysis, macro-based strategy, and alpha edge detection.
+<p align="left">
+  <img alt="Python" src="https://img.shields.io/badge/Python-3.10%2B-blue.svg">
+  <img alt="Tests" src="https://img.shields.io/badge/Tests-pytest-brightgreen.svg">
+  <img alt="License" src="https://img.shields.io/badge/License-MIT-yellow.svg">
+  <img alt="Status" src="https://img.shields.io/badge/Status-active%20development-orange.svg">
+</p>
 
-The project is organized as a lightweight Python micro-platform with reusable modules, CLI-driven scripts, and a roadmap-based development flow.
+TradingLab is a modular quantitative trading lab focused on repeatable research, controlled backtesting, risk checks, and supervised execution.
 
-## Project Status
+## 🚀 What it is
 
-TradingLab is actively developed around the main quantitative research workflow.
+TradingLab is a terminal-first Python codebase for building and validating trading workflows in a structured way. It is designed to keep research, risk management, execution logic, and runtime state clearly separated so the system stays understandable as it grows.
 
-TradingLab includes modules for:
-- data ingestion and setup;
-- strategy generation and validation;
-- backtesting and performance analysis;
-- risk and reward management;
-- market regime detection;
-- multi-factor strategy logic;
-- strategy optimization;
-- portfolio construction;
-- trade setup generation;
-- Monte Carlo simulation;
-- drawdown analysis;
-- macro-based strategy mapping;
-- alpha edge detection.
+## ✅ What it does now
 
-The codebase is designed as a compact framework for systematic research, repeatable analysis, and controlled execution workflows.
+TradingLab currently supports:
 
-## Tech Stack
+- loading and testing execution logic;
+- building order intents from signals and risk checks;
+- blocking execution when the risk layer disallows a trade;
+- persisting bot state across runs;
+- keeping runtime state out of version control;
+- validating the main execution path with automated tests.
 
-- Python 3.10+.
-- Pytest.
-- CLI-based workflow scripts.
-- Modular source layout under `src/`.
+The project is intentionally practical: it is built for supervised use, not for pretending to be a fully autonomous trading system.
 
-## Repository Structure
+## ⚙️ Core workflow
+
+The current execution flow is simple:
+
+1. load a risk summary;
+2. build an order intent;
+3. block the order if the risk check fails;
+4. persist the latest bot state;
+5. keep local runtime files separate from Git.
+
+## 🧱 Repository structure
 
 ```text
 src/
-  data.py
-  strategies.py
-  backtest.py
-  risk.py
-  regime.py
-  factors.py
-  optimization.py
-  portfolio.py
-  signals.py
-  montecarlo.py
-  drawdown.py
-  macro.py
-  alpha.py
+  execution.py
+  bot_state.py
+  ...
 
 scripts/
-  download_data.py
-  run_backtest.py
-  analyze_risk.py
-  generate_trades.py
-  run_montecarlo.py
-  run_macro.py
-  run_alpha.py
+  run_bot.py
+  ...
 
 tests/
-  test_*.py
+  test_execution.py
 
 config/
-notebooks/
-reports/
-data/
+  bot_state.example.json
+  bot_state.json  # ignored by Git
+
+ROADMAP.md
+README.md
 ```
 
-## Key Features
-
-- Download and cache market data.
-- Generate and evaluate trading strategies.
-- Run backtests and compute performance metrics.
-- Analyze risk, drawdowns, and trade statistics.
-- Detect market regimes and adapt logic accordingly.
-- Build and score multi-factor strategies.
-- Optimize strategy parameters.
-- Construct diversified portfolios.
-- Generate high-probability trade setups.
-- Simulate outcomes with Monte Carlo methods.
-- Analyze macro regimes and map them to exposure profiles.
-- Detect alpha edges and convert them into actionable playbooks.
-
-## Quick Start
-
-Clone the repository and set up a virtual environment:
+## 🏁 Quick start
 
 ```bash
-git clone https://github.com/iFabbro/TradingLab.git
-cd TradingLab
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
+pytest -q
 ```
 
-Run a sample workflow:
+## 🗂️ Runtime state
+
+The bot uses a local state file for operational continuity.
 
 ```bash
-python scripts/download_data.py --ticker BTC-USD --start 2016-01-01 --timeframe 1d
-python scripts/run_backtest.py --strategy-id ma_crossover --ticker BTC-USD --start 2016-01-01 --end 2026-01-01 --timeframe 1d --capital 10000
-python scripts/analyze_risk.py --strategy-id ma_crossover --ticker BTC-USD
-python scripts/run_montecarlo.py --strategy-id ma_crossover --ticker BTC-USD
-python scripts/generate_trades.py --market crypto --ticker BTC-USD
+cp config/bot_state.example.json config/bot_state.json
 ```
 
-## Usage
+- `config/bot_state.example.json` is versioned and documents the expected structure.
+- `config/bot_state.json` is the local runtime file and is ignored by Git.
+- If the schema changes, update the example file first.
 
-TradingLab is intended for iterative quantitative research. Start by downloading data, then run a backtest, inspect risk metrics, and refine strategy logic through the available scripts and modules.
-
-For example, a typical workflow is:
-1. download historical data;
-2. validate a strategy with backtesting;
-3. inspect risk and drawdown behavior;
-4. test robustness with Monte Carlo analysis;
-5. generate trade setups or macro-aware signals.
-
-
-## Safety and configuration
-
-The autonomous bot uses a configurable safety policy. Copy the example config to a local file before running the bot:
-
-```bash
-cp config/safety.example.yaml config/safety.yaml
-```
-
-`config/safety.yaml` is ignored by Git so you can keep local overrides such as kill switch, daily loss limit, max exposure, and paper-live or dry-run preferences.
-
-## Testing
+## 🧪 Testing
 
 Run the test suite with:
 
 ```bash
-pytest -v
+pytest -q
 ```
 
-## Roadmap
+The tests cover order building, kill-switch blocking, paper-live behavior, risk loading, and bot state persistence.
 
-The repository follows a roadmap-driven development model, where each major capability is implemented as an independent module and tested in isolation.
+## 🧭 Project status
 
-## Contributing
+TradingLab is under active development with a strong focus on reliability, clarity, and operational safety. The current priority is to keep the execution and state layers robust before expanding into more advanced research capabilities.
 
-Contributions are welcome. If you want to suggest an improvement, open an issue or submit a pull request.
+## 🗺️ Roadmap
 
-Before contributing, please make sure:
-- the change is focused;
-- tests still pass;
-- the README and docs stay consistent with the codebase.
+`ROADMAP.md` contains the broader development plan and future phases. The README is deliberately narrower and describes the current working surface of the project.
 
-## License
+## 🤝 Contributing
 
-This project is licensed under the MIT License. See the `LICENSE` file for details.
+Contributions are welcome. Keep changes focused, keep tests passing, and update the documentation when the runtime flow changes.
+
+## 📄 License
+
+This project is licensed under the MIT License. See `LICENSE` for details.
