@@ -36,6 +36,18 @@ def test_execution_engine_blocks_when_signal_missing_fields():
     assert order["quantity"] == 0
 
 
+def test_execution_engine_submit_order_fails_on_failure():
+    engine = ExecutionEngine()
+    calls = []
+    def submitter(order):
+        calls.append(order)
+        raise RuntimeError("broker down")
+    result = engine.submit_order({"ticker": "TEST", "side": "long", "quantity": 2, "status": "pending"}, submitter=submitter, retries=1)
+    assert result["status"] == "failed"
+    assert result["error"] == "broker down"
+    assert len(calls) == 2
+
+
 def test_load_risk_check_accepts_csv(tmp_path):
     path = tmp_path / "risk_summary.csv"
     pd.DataFrame(

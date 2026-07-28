@@ -13,3 +13,17 @@ class ExecutionEngine:
             "quantity": position_size,
             "status": "pending",
         }
+
+    def submit_order(self, order, submitter=None, retries=1):
+        attempts = 0
+        last_error = None
+        while attempts <= retries:
+            try:
+                if submitter is None:
+                    return {**order, "status": "submitted"}
+                submitter(order)
+                return {**order, "status": "submitted"}
+            except Exception as exc:
+                last_error = str(exc)
+                attempts += 1
+        return {**order, "status": "failed", "error": last_error}
