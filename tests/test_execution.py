@@ -48,6 +48,15 @@ def test_execution_engine_submit_order_fails_on_failure():
     assert len(calls) == 2
 
 
+def test_execution_engine_place_order_returns_stub_response():
+    engine = ExecutionEngine()
+    order = {"ticker": "TEST", "side": "long", "quantity": 2, "status": "pending"}
+    result = engine.place_order(order)
+    assert result["status"] == "submitted"
+    assert result["provider"] == "stub"
+    assert result["order_id"] == "stub-TEST-long-2"
+
+
 def test_load_risk_check_accepts_csv(tmp_path):
     path = tmp_path / "risk_summary.csv"
     pd.DataFrame(
