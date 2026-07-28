@@ -27,3 +27,8 @@ class ExecutionEngine:
                 last_error = str(exc)
                 attempts += 1
         return {**order, "status": "failed", "error": last_error}
+
+    def place_order(self, order, provider=None):
+        if provider is None:
+            return {**order, "status": "submitted", "provider": "stub", "order_id": f"stub-{order.get('ticker')}-{order.get('side')}-{order.get('quantity')}"}
+        return provider.place_order(order)
