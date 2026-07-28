@@ -28,6 +28,14 @@ def test_execution_engine_blocks_when_risk_disallows():
     assert order["status"] == "blocked"
 
 
+def test_execution_engine_blocks_when_signal_missing_fields():
+    engine = ExecutionEngine()
+    order = engine.build_order(signal={}, risk_check={"allowed": True}, position_size=2)
+
+    assert order["status"] == "blocked"
+    assert order["quantity"] == 0
+
+
 def test_load_risk_check_accepts_csv(tmp_path):
     path = tmp_path / "risk_summary.csv"
     pd.DataFrame(
