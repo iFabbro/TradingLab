@@ -66,7 +66,7 @@ def main() -> None:
         max_exposure=float(safety_cfg.get("max_exposure", 0.0) or args.max_exposure or state.get("max_exposure", 0.0)),
         max_position_size=int(safety_cfg.get("max_position_size", 0) or args.max_position_size or state.get("max_position_size", 0)),
         paper_live=bool(safety_cfg.get("paper_live", False) or args.paper_live),
-        dry_run=bool(safety_cfg.get("dry_run", True) or args.dry_run),
+        dry_run=bool(safety_cfg["dry_run"]) if "dry_run" in safety_cfg else bool(args.dry_run or not args.paper_live),
     )
     current_daily_loss = float(risk_check.get("daily_loss", state.get("daily_loss", 0.0)))
     safety = evaluate_safety(
@@ -102,18 +102,22 @@ def main() -> None:
 
     risk_check["allowed"] = bool(risk_check.get("allowed", False)) and safety["allowed"]
     order = engine.build_order(signal=signal, risk_check=risk_check, position_size=args.position_size)
+    final_order = order
+    if safety["paper_live"] and not safety["dry_run"] and order["status"] == "pending":
+        final_order = engine.submit_order(order)
+        final_order = engine.place_order(final_order)
     report = build_bot_report(
-        ticker=order["ticker"],
-        side=order["side"],
-        quantity=order["quantity"],
-        status=order["status"],
+        ticker=final_order["ticker"],
+        side=final_order["side"],
+        quantity=final_order["quantity"],
+        status=final_order["status"],
         dry_run=safety["dry_run"],
         paper_live=safety["paper_live"],
         risk_allowed=risk_check["allowed"],
-        blocked_reasons=safety["blocked_reasons"] if order["status"] == "blocked" else [],
+        blocked_reasons=safety["blocked_reasons"] if final_order["status"] == "blocked" else [],
     )
     state.update({
-        "last_status": order["status"],
+        "last_status": final_order["status"],
         "last_report": report,
         "last_run_at": __import__("datetime").datetime.now(__import__("datetime").UTC).isoformat(),
         "daily_loss": current_daily_loss,
