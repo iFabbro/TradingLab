@@ -24,6 +24,9 @@ def test_bootstrap_ci_is_reproducible():
 
 def test_degradation():
     assert degradation(2.0, 1.0) == 0.5
+    assert degradation(2.0, 3.0) == -0.5
+    assert degradation(-0.10, -0.20, metric="max_drawdown") == 1.0
+    assert degradation(-0.10, -0.05, metric="max_drawdown") == -0.5
     assert np.isnan(degradation(0.0, 1.0))
 
 
@@ -37,6 +40,14 @@ def test_multiple_testing_diagnostic():
 def test_aggregate_window_metrics():
     result = aggregate_window_metrics(pd.DataFrame({"sharpe": [1.0, 2.0], "return": [0.1, 0.2]}))
     assert result.loc["sharpe", "mean"] == 1.5
+
+
+def test_aggregate_window_metrics_ignores_non_finite_values_and_reports_counts():
+    result = aggregate_window_metrics(pd.DataFrame({"sharpe": [1.0, np.inf, 3.0], "return": [0.1, -np.inf, 0.2]}))
+    assert result.loc["sharpe", "mean"] == 2.0
+    assert result.loc["sharpe", "finite_count"] == 2
+    assert result.loc["sharpe", "total_count"] == 3
+    assert np.isfinite(result.loc["return", "mean"])
 
 
 def test_bootstrap_requires_two_observations():
