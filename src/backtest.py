@@ -99,8 +99,7 @@ class BacktestEngine:
         turnover = exposure.diff().abs().fillna(exposure.abs())
         strategy_returns = gross_returns - turnover * self.friction_rate
         equity = self.initial_capital * (1.0 + strategy_returns).cumprod()
-        equity = pd.Series(equity.to_numpy(dtype=float), index=close.index, name="equity")
-        return equity
+        return pd.Series(equity.to_numpy(dtype=float), index=close.index)
 
     def _build_trade_log(self, prices: pd.DataFrame, strategy, exposure: pd.Series, equity_curve: pd.Series) -> pd.DataFrame:
         cfg = getattr(strategy, "config", None)
@@ -146,7 +145,7 @@ class BacktestEngine:
         return_pct = exit_price / entry_price - 1.0 if positive else 0.0
         price_delta = prices["close"].astype(float) - entry_price
         equity = self.initial_capital + (price_delta * quantity)
-        equity = pd.Series(equity.to_numpy(dtype=float), index=prices.index, name="equity")
+        equity = pd.Series(equity.to_numpy(dtype=float), index=prices.index)
         cfg = getattr(strategy, "config", None)
         ticker = self.ticker or (str(cfg.universe[0]) if getattr(cfg, "universe", None) else "UNKNOWN")
         tag = getattr(cfg, "name", self.strategy_tag)
@@ -154,7 +153,7 @@ class BacktestEngine:
         return equity, trade
 
     def _metrics(self, equity_curve: pd.Series, trade_log: pd.DataFrame) -> dict:
-        equity_curve = pd.Series(equity_curve, index=equity_curve.index, dtype=float, name="equity")
+        equity_curve = pd.Series(equity_curve, index=equity_curve.index, dtype=float)
         rets = equity_curve.pct_change().fillna(0.0)
         annualisation = self._annualisation_factor(equity_curve.index)
         std = rets.std(ddof=0)
