@@ -1,76 +1,67 @@
-"""Reproducible external-data experiment runner.
-
-Usage:
-    python experiments/run_experiment.py --symbol spy --start 2015-01-01 --end 2025-01-01
-
-The runner downloads data, stores the exact dataset plus request/provider
-metadata, and writes a machine-readable manifest. It does not silently fall
-back to synthetic or local data.
-"""
+"""End-to-end reproducible quantitative experiment runner."""
 from __future__ import annotations
-
-import argparse
-import json
+import argparse, json, math, sys
+from dataclasses import asdict, is_dataclass
 from pathlib import Path
-import sys
-
 import pandas as pd
-
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-
+from src.backtest import BacktestEngine
 from src.providers import StooqCSVProvider, save_dataset, save_metadata
+from src.strategies import MeanReversionStrategy, MomentumStrategy, StrategyConfig, TrendFollowingStrategy
+from src.walk_forward import WalkForwardEvaluator
 
+STRATEGIES = {"momentum": MomentumStrategy, "mean_reversion": MeanReversionStrategy, "trend": TrendFollowingStrategy}
 
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--symbol", required=True)
-    parser.add_argument("--start", required=True, help="YYYY-MM-DD")
-    parser.add_argument("--end", required=True, help="YYYY-MM-DD")
-    parser.add_argument("--interval", default="1d")
-    parser.add_argument("--provider", default="stooq", choices=["stooq"])
-    parser.add_argument("--output-root", default="experiments/results")
-    return parser.parse_args()
+def parse_args():
+    p=argparse.ArgumentParser()
+    p.add_argument("--symbol",required=True); p.add_argument("--start",required=True); p.add_argument("--end",required=True)
+    p.add_argument("--interval",default="1d"); p.add_argument("--provider",default="stooq",choices=["stooq"])
+    p.add_argument("--strategy",default="momentum",choices=sorted(STRATEGIES)); p.add_argument("--parameter-grid",required=True)
+    p.add_argument("--selection-metric",default="sharpe"); p.add_argument("--train-size",type=int,required=True)
+    p.add_argument("--validation-size",type=int,required=True); p.add_argument("--test-size",type=int,required=True)
+    p.add_argument("--step-size",type=int,default=None); p.add_argument("--transaction-cost-bps",type=float,default=0.0)
+    p.add_argument("--slippage-bps",type=float,default=0.0); p.add_argument("--bootstrap-samples",type=int,default=5000)
+    p.add_argument("--confidence",type=float,default=0.95); p.add_argument("--output-root",default="experiments/results")
+    return p.parse_args()
 
+def clean(v):
+    if is_dataclass(v): return clean(asdict(v))
+    if isinstance(v,dict): return {str(k):clean(x) for k,x in v.items()}
+    if isinstance(v,(list,tuple)): return [clean(x) for x in v]
+    if isinstance(v,pd.DataFrame): return clean(v.to_dict(orient="records"))
+    if isinstance(v,pd.Series): return clean(v.to_dict())
+    if isinstance(v,pd.Timestamp): return v.isoformat()
+    if hasattr(v,"item"):
+        try: return v.item()
+        except Exception: pass
+    if isinstance(v,float) and math.isnan(v): return None
+    if v == float("inf"): return "inf"
+    if v == float("-inf"): return "-inf"
+    return v
 
-def main() -> int:
-    args = parse_args()
-    if args.provider != "stooq":
-        raise ValueError(f"unsupported provider: {args.provider}")
-
-    provider = StooqCSVProvider()
-    df = provider.fetch(args.symbol, args.start, args.end, args.interval)
-    if df.empty:
-        raise RuntimeError("provider returned no market data")
-    if not isinstance(df.index, pd.DatetimeIndex) or df.index.has_duplicates:
-        raise ValueError("provider returned invalid timestamps")
-    if not df["close"].map(pd.api.types.is_number).all() or (df["close"] <= 0).any():
-        raise ValueError("provider returned invalid close prices")
-
-    run_id = f"{args.symbol.lower()}_{args.start}_{args.end}_{args.interval}_{args.provider}"
-    out = Path(args.output_root) / run_id
-    dataset_path = out / "dataset.csv"
-    metadata_path = out / "metadata.json"
-    sha256 = save_dataset(df, dataset_path)
-    metadata = {
-        "run_id": run_id,
-        "symbol": args.symbol.upper(),
-        "start_requested": args.start,
-        "end_requested": args.end,
-        "interval": args.interval,
-        "provider": provider.metadata(),
-        "rows": int(len(df)),
-        "actual_start": df.index.min().isoformat(),
-        "actual_end": df.index.max().isoformat(),
-        "dataset_sha256": sha256,
-        "schema": {"index": "datetime", "columns": list(df.columns)},
-        "synthetic_data": False,
-        "local_fallback": False,
-    }
-    save_metadata(metadata, metadata_path)
-    print(json.dumps(metadata, indent=2, sort_keys=True))
+def main():
+    a=parse_args(); grid=json.loads(a.parameter_grid)
+    if not isinstance(grid,dict) or not grid: raise ValueError("--parameter-grid must be a non-empty JSON object")
+    provider=StooqCSVProvider(); df=provider.fetch(a.symbol,a.start,a.end,a.interval)
+    if df.empty or df.index.has_duplicates or not df.index.is_monotonic_increasing: raise ValueError("provider returned invalid market data")
+    if df["close"].isna().any() or not (df["close"]>0).all(): raise ValueError("provider returned invalid close prices")
+    run_id=f"{a.symbol.lower()}_{a.strategy}_{a.start}_{a.end}_{a.interval}_{a.provider}"; out=Path(a.output_root)/run_id; out.mkdir(parents=True,exist_ok=True)
+    dataset_path=out/"dataset.csv"; metadata_path=out/"metadata.json"; report_path=out/"report.json"; selection_path=out/"parameter_selection.csv"
+    sha=save_dataset(df,dataset_path)
+    metadata={"run_id":run_id,"symbol":a.symbol.upper(),"strategy":a.strategy,"requested_period":{"start":a.start,"end":a.end},"actual_period":{"start":df.index.min().isoformat(),"end":df.index.max().isoformat()},"interval":a.interval,"provider":provider.metadata(),"rows":len(df),"dataset_sha256":sha,"synthetic_data":False,"local_fallback":False,"walk_forward":{"train_size":a.train_size,"validation_size":a.validation_size,"test_size":a.test_size,"step_size":a.step_size},"frictions":{"transaction_cost_bps":a.transaction_cost_bps,"slippage_bps":a.slippage_bps},"parameter_grid":grid,"selection_metric":a.selection_metric}
+    save_metadata(metadata,metadata_path)
+    cls=STRATEGIES[a.strategy]
+    def factory(train,params):
+        if "lookback" not in params: raise ValueError("parameter grid must contain lookback")
+        cfg=StrategyConfig(name=a.strategy,universe=[a.symbol.upper()],lookback=int(params["lookback"]),params={k:v for k,v in params.items() if k!="lookback"})
+        return cls(cfg)
+    def bt():
+        return BacktestEngine(initial_capital=100000,output_dir=out/"backtest_outputs",strategy_tag=a.strategy,ticker=a.symbol.upper(),transaction_cost_bps=a.transaction_cost_bps,slippage_bps=a.slippage_bps)
+    result=WalkForwardEvaluator(a.train_size,a.validation_size,a.test_size,a.step_size).evaluate(df,factory,bt,grid,a.selection_metric,a.selection_metric!="max_drawdown")
+    result.selection_metrics.to_csv(selection_path,index=False)
+    report={"provenance":metadata,"windows":result.windows,"selected_parameters":result.selected_parameters,"train_metrics":result.train_metrics,"validation_metrics":result.validation_metrics,"test_metrics":result.test_metrics,"robustness":result.robustness_report(a.confidence,a.bootstrap_samples)}
+    report_path.write_text(json.dumps(clean(report),indent=2,sort_keys=True),encoding="utf-8")
+    print(json.dumps({"run_id":run_id,"dataset":str(dataset_path),"metadata":str(metadata_path),"report":str(report_path),"parameter_selection":str(selection_path),"windows":len(result.test_results)},indent=2))
     return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
+if __name__=="__main__": raise SystemExit(main())
