@@ -39,6 +39,23 @@ class BaseStrategy:
     def generate_signals(self, prices: pd.DataFrame) -> pd.Series:
         raise NotImplementedError
 
+    def generate_time_series_signals(self, prices: pd.DataFrame) -> pd.Series:
+        """Generate point-in-time signals without using future observations.
+
+        This adapter is for single-series research/backtesting. Multi-asset
+        portfolio construction remains a separate responsibility.
+        """
+        if prices.empty or not isinstance(prices.index, pd.DatetimeIndex):
+            raise ValueError("prices must be a non-empty DatetimeIndex DataFrame")
+        signals = []
+        for timestamp in prices.index:
+            snapshot = prices.loc[:timestamp]
+            result = self.generate_signals(snapshot)
+            if "close" not in result.index:
+                raise ValueError("time-series adapter requires a 'close' signal")
+            signals.append(float(result.loc["close"]))
+        return pd.Series(signals, index=prices.index, name="signal")
+
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(name={self.config.name!r})"
 
