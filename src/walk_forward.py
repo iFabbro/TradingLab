@@ -1,8 +1,9 @@
-"""Walk-forward train/validation/test evaluation utilities."""
+"""Walk-forward train/validation/test and parameter-selection utilities."""
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Callable, Any
+from itertools import product
+from typing import Callable, Any, Iterable
 
 import pandas as pd
 
@@ -24,6 +25,8 @@ class WalkForwardResult:
     windows: pd.DataFrame
     validation_results: list[BacktestResult] = field(default_factory=list)
     test_results: list[BacktestResult] = field(default_factory=list)
+    selected_parameters: list[dict[str, Any]] = field(default_factory=list)
+    selection_results: list[pd.DataFrame] = field(default_factory=list)
 
     @property
     def validation_metrics(self) -> pd.DataFrame:
@@ -33,17 +36,31 @@ class WalkForwardResult:
     def test_metrics(self) -> pd.DataFrame:
         return pd.DataFrame([r.metrics for r in self.test_results])
 
+    @property
+    def selection_metrics(self) -> pd.DataFrame:
+        frames = []
+        for window, frame in enumerate(self.selection_results, start=1):
+            current = frame.copy()
+            current.insert(0, "window", window)
+            frames.append(current)
+        return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+
 
 class WalkForwardEvaluator:
     """Chronological expanding-window evaluator with explicit leakage boundaries.
 
-    The strategy factory receives training data only. The returned strategy is
-    frozen, then evaluated on validation and test slices without refitting.
-    Historical observations preceding each evaluation slice are supplied only
-    to the signal generator so indicators have the correct warm-up context.
+    With ``parameter_grid``, every candidate is created from TRAIN only and
+    scored on VALIDATION. The best candidate is then frozen and evaluated once
+    on TEST. TEST is never used for parameter selection.
     """
 
-    def __init__(self, train_size: int, validation_size: int, test_size: int, step_size: int | None = None) -> None:
+    def __init__(
+        self,
+        train_size: int,
+        validation_size: int,
+        test_size: int,
+        step_size: int | None = None,
+    ) -> None:
         if min(train_size, validation_size, test_size) <= 0:
             raise ValueError("window sizes must be > 0")
         self.train_size = train_size
@@ -77,33 +94,102 @@ class WalkForwardEvaluator:
         if generator is None:
             raise TypeError("strategy must implement generate_time_series_signals for walk-forward evaluation")
         signals = generator(history)
+        if not signals.index.equals(history.index):
+            raise ValueError("time-series signal index must match history index")
         return signals.loc[evaluation_index]
 
-    def evaluate(self, prices: pd.DataFrame, strategy_factory: Callable[[pd.DataFrame], Any], backtest_factory: Callable[[], BacktestEngine] | None = None) -> WalkForwardResult:
+    @staticmethod
+    def _parameter_combinations(parameter_grid: dict[str, Iterable[Any]]) -> list[dict[str, Any]]:
+        if not parameter_grid:
+            raise ValueError("parameter_grid cannot be empty")
+        keys = list(parameter_grid)
+        values = [list(parameter_grid[key]) for key in keys]
+        if any(not options for options in values):
+            raise ValueError("parameter_grid values cannot be empty")
+        return [dict(zip(keys, combo)) for combo in product(*values)]
+
+    @staticmethod
+    def _metric_value(result: BacktestResult, metric: str) -> float:
+        if metric not in result.metrics:
+            raise ValueError(f"selection metric not available: {metric}")
+        value = float(result.metrics[metric])
+        if pd.isna(value):
+            return float("-inf")
+        return value
+
+    def _run_candidate(
+        self,
+        strategy: Any,
+        history: pd.DataFrame,
+        evaluation_index: pd.DatetimeIndex,
+        evaluation_prices: pd.DataFrame,
+        backtest_factory: Callable[[], BacktestEngine] | None,
+    ) -> BacktestResult:
+        signals = self._signals(strategy, history, evaluation_index)
+        engine = backtest_factory() if backtest_factory else BacktestEngine()
+        return engine.run(evaluation_prices, _SeriesSignalStrategy(signals, strategy))
+
+    def evaluate(
+        self,
+        prices: pd.DataFrame,
+        strategy_factory: Callable[[pd.DataFrame, dict[str, Any]], Any] | Callable[[pd.DataFrame], Any],
+        backtest_factory: Callable[[], BacktestEngine] | None = None,
+        parameter_grid: dict[str, Iterable[Any]] | None = None,
+        selection_metric: str = "sharpe",
+        maximize: bool = True,
+    ) -> WalkForwardResult:
+        """Evaluate windows, optionally selecting parameters on validation only.
+
+        When ``parameter_grid`` is supplied, ``strategy_factory(train, params)``
+        is called once per candidate. Each candidate sees TRAIN only. The
+        selected instance is reused unchanged for TEST. The default objective
+        is validation Sharpe; callers should choose the objective deliberately
+        and avoid excessive parameter grids.
+        """
         prices = prices.sort_index()
         windows = self.windows(prices.index)
         validation_results: list[BacktestResult] = []
         test_results: list[BacktestResult] = []
+        selected_parameters: list[dict[str, Any]] = []
+        selection_results: list[pd.DataFrame] = []
         rows = []
+
+        candidates = self._parameter_combinations(parameter_grid) if parameter_grid is not None else [None]
 
         for number, window in enumerate(windows, start=1):
             train = prices.loc[window.train_start : window.train_end]
             validation = prices.loc[window.validation_start : window.validation_end]
             test = prices.loc[window.test_start : window.test_end]
 
-            strategy = strategy_factory(train)
             validation_history = pd.concat([train, validation])
-            validation_signals = self._signals(strategy, validation_history, validation.index)
-            validation_engine = backtest_factory() if backtest_factory else BacktestEngine()
-            validation_result = validation_engine.run(validation, _SeriesSignalStrategy(validation_signals, strategy))
+            candidate_rows = []
+            candidate_objects = []
+            for params in candidates:
+                try:
+                    strategy = strategy_factory(train, params) if params is not None else strategy_factory(train)  # type: ignore[misc]
+                    result = self._run_candidate(strategy, validation_history, validation.index, validation, backtest_factory)
+                    score = self._metric_value(result, selection_metric)
+                    candidate_rows.append({**(params or {}), selection_metric: score, "status": "ok"})
+                    candidate_objects.append((params or {}, strategy, result, score))
+                except Exception as exc:
+                    candidate_rows.append({**(params or {}), selection_metric: float("-inf"), "status": f"error: {exc}"})
 
+            if not candidate_objects:
+                raise RuntimeError(f"no valid parameter candidate in window {number}")
+
+            selected = max(candidate_objects, key=lambda item: item[3]) if maximize else min(candidate_objects, key=lambda item: item[3])
+            selected_params, frozen_strategy, validation_result, selected_score = selected
+            selection_frame = pd.DataFrame(candidate_rows).sort_values(selection_metric, ascending=not maximize, ignore_index=True)
+
+            # TEST is evaluated only after validation selection and uses the
+            # exact strategy object selected above. No refit or reselection.
             test_history = pd.concat([train, validation, test])
-            test_signals = self._signals(strategy, test_history, test.index)
-            test_engine = backtest_factory() if backtest_factory else BacktestEngine()
-            test_result = test_engine.run(test, _SeriesSignalStrategy(test_signals, strategy))
+            test_result = self._run_candidate(frozen_strategy, test_history, test.index, test, backtest_factory)
 
             validation_results.append(validation_result)
             test_results.append(test_result)
+            selected_parameters.append(selected_params)
+            selection_results.append(selection_frame)
             rows.append({
                 "window": number,
                 "train_start": window.train_start,
@@ -112,9 +198,11 @@ class WalkForwardEvaluator:
                 "validation_end": window.validation_end,
                 "test_start": window.test_start,
                 "test_end": window.test_end,
+                "selected_parameters": selected_params,
+                "validation_selection_score": selected_score,
             })
 
-        return WalkForwardResult(pd.DataFrame(rows), validation_results, test_results)
+        return WalkForwardResult(pd.DataFrame(rows), validation_results, test_results, selected_parameters, selection_results)
 
 
 class _SeriesSignalStrategy:
