@@ -1,0 +1,1 @@
+run_id,timestamp_utc,git_commit,protocol_version,protocol_sha256,dataset_sha256,strategy,symbol,requested_start,requested_end,provider,interval,windows,nominal_candidate_trials,oos_observations,oos_total_return,oos_sharpe,oos_psr,decision,reasons_json,warnings_json
