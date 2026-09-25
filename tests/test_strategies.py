@@ -59,8 +59,10 @@ def test_momentum_returns_series(prices):
 def test_momentum_top_n_returns_two_nonzero_scores(prices):
     strat = MomentumStrategy(base_config(top_n=2))
     sig = strat.generate_signals(prices)
-    assert int((sig != 0).sum()) == 2
-    assert (sig[sig != 0] == sig.nlargest(2)).all()
+    selected = set(sig.index[sig != 0])
+    expected = set(sig.nlargest(2).index)
+    assert len(selected) == 2
+    assert selected == expected
 
 
 def test_momentum_repr():
