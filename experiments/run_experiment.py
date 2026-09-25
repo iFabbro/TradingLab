@@ -16,12 +16,12 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from src.backtest import BacktestEngine
-from src.providers import StooqCSVProvider, save_dataset, save_metadata
+from src.providers import StooqCSVProvider, YahooFinanceProvider, save_dataset, save_metadata
 from src.strategies import MeanReversionStrategy, MomentumStrategy, StrategyConfig, TrendFollowingStrategy
 from src.walk_forward import WalkForwardEvaluator
 
 STRATEGIES = {"momentum": MomentumStrategy, "mean_reversion": MeanReversionStrategy, "trend": TrendFollowingStrategy}
-PROVIDERS = {"stooq": StooqCSVProvider}
+PROVIDERS = {"stooq": StooqCSVProvider, "yfinance": YahooFinanceProvider}
 
 
 def parse_args():
@@ -30,7 +30,7 @@ def parse_args():
     p.add_argument("--start", required=True)
     p.add_argument("--end", required=True)
     p.add_argument("--interval", default="1d")
-    p.add_argument("--provider", default="stooq", choices=sorted(PROVIDERS))
+    p.add_argument("--provider", default="yfinance", choices=sorted(PROVIDERS))
     p.add_argument("--strategy", default="momentum", choices=sorted(STRATEGIES))
     p.add_argument("--parameter-grid", required=True)
     p.add_argument("--selection-metric", default="sharpe")
