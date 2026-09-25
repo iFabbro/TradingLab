@@ -128,13 +128,7 @@ def probabilistic_sharpe_ratio(
     benchmark_sharpe: float = 0.0,
     annualisation: float = 252.0,
 ) -> dict:
-    """PSR for a return series, including skewness/kurtosis adjustment.
-
-    The Sharpe ratio and benchmark are supplied in annualised units, while the
-    finite-sample correction is applied after converting them to the sampling
-    frequency of the return series. This is the form implied by the PSR/DSR
-    framework of Bailey & López de Prado.
-    """
+    """PSR for a return series, including skewness/kurtosis adjustment."""
     x = np.asarray(list(returns), dtype=float)
     x = x[np.isfinite(x)]
     if x.size < 3:
@@ -157,13 +151,7 @@ def probabilistic_sharpe_ratio(
 
 
 def expected_max_sharpe_null(trials: int, observations: int) -> float:
-    """Original DSR location benchmark under the zero-SR IID null.
-
-    Bailey & López de Prado approximate the expected maximum of N trials with
-    the Euler-Mascheroni correction to the normal extreme-value approximation.
-    Here the per-observation Sharpe standard deviation is 1/sqrt(T-1), and the
-    returned value is at the observation frequency (not annualised).
-    """
+    """Original DSR location benchmark under the zero-SR IID null."""
     if trials < 1 or observations < 2:
         raise ValueError("trials must be >= 1 and observations >= 2")
     if trials == 1:
@@ -179,13 +167,7 @@ def deflated_sharpe_ratio(
     trials: int,
     annualisation: float = 252.0,
 ) -> dict:
-    """DSR probability for a selected return series.
-
-    The trial count is deliberately explicit. It is the *nominal* number of
-    alternatives in the declared search, not an inferred effective count.
-    Because dependent trials are common in parameter grids, the report also
-    exposes the assumption so users cannot mistake this for an exact correction.
-    """
+    """DSR probability for a selected return series."""
     x = np.asarray(list(returns), dtype=float)
     x = x[np.isfinite(x)]
     if trials < 1:
@@ -211,19 +193,25 @@ def deflated_sharpe_ratio(
     }
 
 
-def degradation(is_metric: float, oos_metric: float) -> float:
-    """Relative OOS degradation. Positive means OOS is lower than IS."""
+def degradation(is_metric: float, oos_metric: float, metric: str | None = None) -> float:
+    """Return relative OOS deterioration, with a stable metric-specific contract.
+
+    Positive values mean deterioration from IS to OOS; negative values mean
+    improvement. Metrics whose desirable direction is higher use
+    ``(IS - OOS) / abs(IS)``. ``max_drawdown`` is represented as a non-positive
+    number in TradingLab, so deterioration is an increase in drawdown magnitude:
+    ``(abs(OOS) - abs(IS)) / abs(IS)``. A zero/non-finite IS baseline is
+    undefined and returns NaN rather than an infinite or misleading ratio.
+    """
     if not np.isfinite(is_metric) or not np.isfinite(oos_metric) or is_metric == 0:
         return float("nan")
+    if metric == "max_drawdown":
+        return float((abs(oos_metric) - abs(is_metric)) / abs(is_metric))
     return float((is_metric - oos_metric) / abs(is_metric))
 
 
 def deflated_sharpe_score(observed_sharpe: float, trials: int, observations: int) -> float:
-    """Backward-compatible z-score wrapper for callers using scalar inputs.
-
-    This assumes IID normal returns and is retained only for compatibility;
-    new reports should use ``deflated_sharpe_ratio`` with the actual returns.
-    """
+    """Backward-compatible z-score wrapper for callers using scalar inputs."""
     if trials < 1 or observations < 2:
         raise ValueError("trials must be >= 1 and observations >= 2")
     sr_star = expected_max_sharpe_null(trials, observations)
@@ -232,7 +220,7 @@ def deflated_sharpe_score(observed_sharpe: float, trials: int, observations: int
 
 
 def multiple_testing_diagnostics(candidate_count: int, best_validation_sharpe: float, observations: int = 2) -> dict:
-    """Compatibility summary; full reports should pass the selected returns."""
+    """Compatibility summary; full reports should pass the selected return series."""
     if candidate_count < 1:
         raise ValueError("candidate_count must be >= 1")
     return {
@@ -245,8 +233,20 @@ def multiple_testing_diagnostics(candidate_count: int, best_validation_sharpe: f
 
 
 def aggregate_window_metrics(metrics: pd.DataFrame) -> pd.DataFrame:
-    """Summarize window-level metrics without incorrectly pooling returns."""
+    """Summarize only finite numeric window metrics.
+
+    Non-finite values are excluded per metric before aggregation. This prevents
+    a single undefined metric from contaminating means/std/min/max with +/-inf,
+    while retaining the information through the finite-observation count.
+    """
     if metrics.empty:
         return pd.DataFrame()
-    numeric = metrics.select_dtypes(include=[np.number])
-    return numeric.agg(["mean", "median", "std", "min", "max"]).T
+    numeric = metrics.select_dtypes(include=[np.number]).copy()
+    if numeric.empty:
+        return pd.DataFrame()
+    finite_counts = numeric.apply(lambda s: int(np.isfinite(s.to_numpy(dtype=float)).sum()))
+    numeric = numeric.replace([np.inf, -np.inf], np.nan)
+    summary = numeric.agg(["mean", "median", "std", "min", "max"]).T
+    summary["finite_count"] = finite_counts
+    summary["total_count"] = len(metrics)
+    return summary
