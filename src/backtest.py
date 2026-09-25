@@ -19,6 +19,18 @@ class BacktestResult:
 class BacktestEngine:
     """Long-only close-to-close backtester with explicit trading frictions.
 
+    Contract:
+    - signals are point-in-time and applied from the following bar;
+    - exposure is a finite numeric value in [0, 1] and is clipped to that
+      interval so a malformed strategy cannot introduce unintended leverage;
+    - equity is fully marked-to-market and is always a pandas Series;
+    - position size is based on equity at trade entry, so successive trades
+      compound by default through the evolving equity curve;
+    - transaction costs and slippage are charged on every exposure change via
+      turnover * (transaction_cost_bps + slippage_bps) / 10_000;
+    - trade-log P&L reconciles to the change in marked-to-market equity between
+      the trade entry and exit timestamps.
+
     A signal at timestamp t is known at the close of t and is applied from
     t+1. Transaction costs and slippage are charged on exposure changes.
     """
@@ -50,7 +62,7 @@ class BacktestEngine:
             equity_curve = self._build_equity_curve(prices["close"], exposure)
             trade_log = self._build_trade_log(prices, strategy, exposure, equity_curve)
         else:
-            self._last_exposure = pd.Series(0.0, index=prices.index)
+            self._last_exposure = pd.Series(0.0, index=prices.index, dtype=float)
             equity_curve, trade_log = self._legacy_snapshot_result(prices, strategy, signals)
         metrics = self._metrics(equity_curve, trade_log)
         self._save_outputs(trade_log, equity_curve, metrics)
@@ -78,9 +90,7 @@ class BacktestEngine:
         exposure = pd.to_numeric(signals, errors="coerce")
         if exposure.isna().any() or not np.isfinite(exposure.to_numpy()).all():
             raise ValueError("signals must contain finite numeric values")
-        if ((exposure < 0) | (exposure > 1)).any():
-            raise ValueError("time-series exposure signals must be between 0 and 1")
-        return exposure.astype(float)
+        return exposure.clip(lower=0.0, upper=1.0).astype(float)
 
     def _build_equity_curve(self, close: pd.Series, exposure: pd.Series) -> pd.Series:
         returns = close.pct_change().fillna(0.0)
@@ -89,7 +99,7 @@ class BacktestEngine:
         turnover = exposure.diff().abs().fillna(exposure.abs())
         strategy_returns = gross_returns - turnover * self.friction_rate
         equity = self.initial_capital * (1.0 + strategy_returns).cumprod()
-        equity.name = "equity"
+        equity = pd.Series(equity.to_numpy(dtype=float), index=close.index, name="equity")
         return equity
 
     def _build_trade_log(self, prices: pd.DataFrame, strategy, exposure: pd.Series, equity_curve: pd.Series) -> pd.DataFrame:
@@ -117,13 +127,10 @@ class BacktestEngine:
                 exit_idx = timestamp
                 exit_price = float(prices.loc[exit_idx, "close"])
                 quantity = (entry_equity * entry_exposure) / entry_price
-                gross_pnl = (exit_price - entry_price) * quantity
-                exit_exposure = prev if should_exit else current
-                traded_value = entry_equity * entry_exposure + float(equity_curve.loc[exit_idx]) * exit_exposure
-                costs = traded_value * self.friction_rate
-                pnl = gross_pnl - costs
+                pnl = float(equity_curve.loc[exit_idx] - entry_equity)
+                net_return = 0.0 if entry_equity == 0 else pnl / entry_equity
                 bars = int(prices.index.get_loc(exit_idx) - prices.index.get_loc(entry_idx))
-                rows.append({"ticker": ticker, "strategy_tag": tag, "status": "closed", "entry_date": entry_idx, "entry_price": entry_price, "exit_date": exit_idx, "exit_price": exit_price, "side": "long", "quantity": quantity, "pnl_realized": pnl, "pnl_unrealized": 0.0, "pnl": pnl, "return_pct": exit_price / entry_price - 1.0, "bars": bars})
+                rows.append({"ticker": ticker, "strategy_tag": tag, "status": "closed", "entry_date": entry_idx, "entry_price": entry_price, "exit_date": exit_idx, "exit_price": exit_price, "side": "long", "quantity": quantity, "pnl_realized": pnl, "pnl_unrealized": 0.0, "pnl": pnl, "return_pct": net_return, "bars": bars})
                 active = False
                 entry_idx = None
         if not rows:
@@ -134,16 +141,20 @@ class BacktestEngine:
         entry_price = float(prices["close"].iloc[0])
         exit_price = float(prices["close"].iloc[-1])
         positive = not signals.empty and float(signals.iloc[0]) > 0
-        pnl = exit_price - entry_price if positive else 0.0
+        quantity = 1.0 if positive else 0.0
+        pnl = (exit_price - entry_price) * quantity
         return_pct = exit_price / entry_price - 1.0 if positive else 0.0
-        equity = self.initial_capital + (prices["close"].astype(float) - entry_price if positive else 0.0)
+        price_delta = prices["close"].astype(float) - entry_price
+        equity = self.initial_capital + (price_delta * quantity)
+        equity = pd.Series(equity.to_numpy(dtype=float), index=prices.index, name="equity")
         cfg = getattr(strategy, "config", None)
         ticker = self.ticker or (str(cfg.universe[0]) if getattr(cfg, "universe", None) else "UNKNOWN")
         tag = getattr(cfg, "name", self.strategy_tag)
-        trade = pd.DataFrame([{"ticker": ticker, "strategy_tag": tag, "status": "closed", "entry_date": prices.index[0], "entry_price": entry_price, "exit_date": prices.index[-1], "exit_price": exit_price, "side": "long", "quantity": 1.0 if positive else 0.0, "pnl_realized": pnl, "pnl_unrealized": 0.0, "pnl": pnl, "return_pct": return_pct, "bars": max(len(prices) - 1, 0)}])
+        trade = pd.DataFrame([{"ticker": ticker, "strategy_tag": tag, "status": "closed", "entry_date": prices.index[0], "entry_price": entry_price, "exit_date": prices.index[-1], "exit_price": exit_price, "side": "long", "quantity": quantity, "pnl_realized": pnl, "pnl_unrealized": 0.0, "pnl": pnl, "return_pct": return_pct, "bars": max(len(prices) - 1, 0)}])
         return equity, trade
 
     def _metrics(self, equity_curve: pd.Series, trade_log: pd.DataFrame) -> dict:
+        equity_curve = pd.Series(equity_curve, index=equity_curve.index, dtype=float, name="equity")
         rets = equity_curve.pct_change().fillna(0.0)
         annualisation = self._annualisation_factor(equity_curve.index)
         std = rets.std(ddof=0)
@@ -155,13 +166,14 @@ class BacktestEngine:
         losses = abs(float(trade_log["pnl"].clip(upper=0).sum())) if n_trades else 0.0
         gains = float(trade_log["pnl"].clip(lower=0).sum()) if n_trades else 0.0
         profit_factor = float("inf") if losses == 0 else gains / losses
+        warning_low_pf = bool(profit_factor < 1.2)
         cagr = 0.0
         if len(equity_curve) > 1:
             days = (equity_curve.index[-1] - equity_curve.index[0]).days
             if days > 0 and equity_curve.iloc[-1] > 0:
                 cagr = float((equity_curve.iloc[-1] / equity_curve.iloc[0]) ** (365.25 / days) - 1.0)
         turnover = float(self._last_exposure.diff().abs().fillna(self._last_exposure.abs()).sum())
-        return {"total_return": float(equity_curve.iloc[-1] / equity_curve.iloc[0] - 1.0), "cagr": cagr, "sharpe": sharpe, "max_drawdown": max_drawdown, "win_rate": win_rate, "profit_factor": profit_factor, "n_trades": n_trades, "turnover": turnover, "transaction_cost_bps": self.transaction_cost_bps, "slippage_bps": self.slippage_bps, "warning_nonpositive_sharpe": bool(sharpe <= 0.0)}
+        return {"total_return": float(equity_curve.iloc[-1] / equity_curve.iloc[0] - 1.0), "cagr": cagr, "sharpe": sharpe, "max_drawdown": max_drawdown, "win_rate": win_rate, "profit_factor": profit_factor, "n_trades": n_trades, "turnover": turnover, "transaction_cost_bps": self.transaction_cost_bps, "slippage_bps": self.slippage_bps, "warning_low_pf": warning_low_pf, "warning_nonpositive_sharpe": bool(sharpe <= 0.0)}
 
     @staticmethod
     def _annualisation_factor(index: pd.DatetimeIndex) -> float:
