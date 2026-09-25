@@ -1,9 +1,4 @@
-"""Walk-forward train/validation/test evaluation utilities.
-
-The evaluator keeps the final test segment untouched until evaluation. It is
-strategy-agnostic: callers provide a factory that receives training data and
-returns a fitted strategy plus its frozen parameter metadata.
-"""
+"""Walk-forward train/validation/test evaluation utilities."""
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -40,20 +35,15 @@ class WalkForwardResult:
 
 
 class WalkForwardEvaluator:
-    """Expanding-window train/validation/test evaluator.
+    """Chronological expanding-window evaluator with explicit leakage boundaries.
 
-    Each window is strictly chronological. The strategy factory receives only
-    the training slice; the returned strategy is frozen for validation and
-    test. The test slice is never passed to the factory.
+    The strategy factory receives training data only. The returned strategy is
+    frozen, then evaluated on validation and test slices without refitting.
+    Strategies derived from BaseStrategy use their point-in-time signal adapter
+    so a signal at t can only use observations available through t.
     """
 
-    def __init__(
-        self,
-        train_size: int,
-        validation_size: int,
-        test_size: int,
-        step_size: int | None = None,
-    ) -> None:
+    def __init__(self, train_size: int, validation_size: int, test_size: int, step_size: int | None = None) -> None:
         if min(train_size, validation_size, test_size) <= 0:
             raise ValueError("window sizes must be > 0")
         self.train_size = train_size
@@ -81,12 +71,14 @@ class WalkForwardEvaluator:
             start += self.step_size
         return result
 
-    def evaluate(
-        self,
-        prices: pd.DataFrame,
-        strategy_factory: Callable[[pd.DataFrame], Any],
-        backtest_factory: Callable[[], BacktestEngine] | None = None,
-    ) -> WalkForwardResult:
+    @staticmethod
+    def _signals(strategy: Any, data: pd.DataFrame) -> pd.Series:
+        generator = getattr(strategy, "generate_time_series_signals", None)
+        if generator is None:
+            raise TypeError("strategy must implement generate_time_series_signals for walk-forward evaluation")
+        return generator(data)
+
+    def evaluate(self, prices: pd.DataFrame, strategy_factory: Callable[[pd.DataFrame], Any], backtest_factory: Callable[[], BacktestEngine] | None = None) -> WalkForwardResult:
         prices = prices.sort_index()
         windows = self.windows(prices.index)
         validation_results: list[BacktestResult] = []
@@ -99,12 +91,13 @@ class WalkForwardEvaluator:
             test = prices.loc[window.test_start : window.test_end]
 
             strategy = strategy_factory(train)
+            validation_signals = self._signals(strategy, validation)
             validation_engine = backtest_factory() if backtest_factory else BacktestEngine()
-            validation_result = validation_engine.run(validation, strategy)
+            validation_result = validation_engine.run(validation.assign(signal=validation_signals), _SeriesSignalStrategy(validation_signals, strategy))
 
-            # Reuse the same frozen strategy. No refit and no test data leakage.
+            test_signals = self._signals(strategy, test)
             test_engine = backtest_factory() if backtest_factory else BacktestEngine()
-            test_result = test_engine.run(test, strategy)
+            test_result = test_engine.run(test.assign(signal=test_signals), _SeriesSignalStrategy(test_signals, strategy))
 
             validation_results.append(validation_result)
             test_results.append(test_result)
@@ -119,3 +112,16 @@ class WalkForwardEvaluator:
             })
 
         return WalkForwardResult(pd.DataFrame(rows), validation_results, test_results)
+
+
+class _SeriesSignalStrategy:
+    """Adapter exposing a precomputed point-in-time signal series to BacktestEngine."""
+
+    def __init__(self, signals: pd.Series, source_strategy: Any) -> None:
+        self.signals = signals
+        self.config = getattr(source_strategy, "config", None)
+
+    def generate_signals(self, prices: pd.DataFrame) -> pd.Series:
+        if not prices.index.equals(self.signals.index):
+            raise ValueError("signal index must exactly match price index")
+        return self.signals
