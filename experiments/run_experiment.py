@@ -8,6 +8,7 @@ import os
 import subprocess
 import sys
 from dataclasses import asdict, is_dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -17,11 +18,14 @@ sys.path.insert(0, str(ROOT))
 
 from src.backtest import BacktestEngine
 from src.providers import StooqCSVProvider, YahooFinanceProvider, save_dataset, save_metadata
+from src.research_governance import append_registry, evaluate_acceptance, protocol_fingerprint
 from src.strategies import MeanReversionStrategy, MomentumStrategy, StrategyConfig, TrendFollowingStrategy
 from src.walk_forward import WalkForwardEvaluator
 
 STRATEGIES = {"momentum": MomentumStrategy, "mean_reversion": MeanReversionStrategy, "trend": TrendFollowingStrategy}
 PROVIDERS = {"stooq": StooqCSVProvider, "yfinance": YahooFinanceProvider}
+PROTOCOL_TRANSACTION_COST_BPS = 5.0
+PROTOCOL_SLIPPAGE_BPS = 2.0
 
 
 def parse_args():
@@ -38,8 +42,8 @@ def parse_args():
     p.add_argument("--validation-size", type=int, required=True)
     p.add_argument("--test-size", type=int, required=True)
     p.add_argument("--step-size", type=int, default=None)
-    p.add_argument("--transaction-cost-bps", type=float, default=0.0)
-    p.add_argument("--slippage-bps", type=float, default=0.0)
+    p.add_argument("--transaction-cost-bps", type=float, default=PROTOCOL_TRANSACTION_COST_BPS)
+    p.add_argument("--slippage-bps", type=float, default=PROTOCOL_SLIPPAGE_BPS)
     p.add_argument("--bootstrap-samples", type=int, default=5000)
     p.add_argument("--confidence", type=float, default=0.95)
     p.add_argument("--oos-block-length", type=int, default=None)
@@ -75,9 +79,15 @@ def git_commit() -> str | None:
 
 def main():
     a = parse_args()
+    if a.transaction_cost_bps != PROTOCOL_TRANSACTION_COST_BPS:
+        raise ValueError("standard research experiments require exactly 5 bps transaction cost")
+    if a.slippage_bps != PROTOCOL_SLIPPAGE_BPS:
+        raise ValueError("standard research experiments require exactly 2 bps slippage")
+
     grid = json.loads(a.parameter_grid)
     if not isinstance(grid, dict) or not grid:
         raise ValueError("--parameter-grid must be a non-empty JSON object")
+    protocol = protocol_fingerprint()
 
     provider = PROVIDERS[a.provider]()
     df = provider.fetch(a.symbol, a.start, a.end, a.interval)
@@ -92,6 +102,7 @@ def main():
     dataset_path, metadata_path = out / "dataset.csv", out / "metadata.json"
     report_path, selection_path = out / "report.json", out / "parameter_selection.csv"
     ledger_path = out / "research_trial_ledger.csv"
+    registry_row_path = out / "research_registry_row.json"
 
     sha = save_dataset(df, dataset_path)
     candidate_count = 1
@@ -101,6 +112,7 @@ def main():
     metadata = {
         "run_id": run_id,
         "git_commit": git_commit(),
+        "research_protocol": protocol,
         "symbol": a.symbol.upper(),
         "strategy": a.strategy,
         "requested_period": {"start": a.start, "end": a.end},
@@ -168,8 +180,52 @@ def main():
         "nominal_total_candidate_trials": int(len(selection_metrics)),
         "robustness": robustness,
     }
-    report_path.write_text(json.dumps(clean(report), indent=2, sort_keys=True), encoding="utf-8")
-    print(json.dumps({"run_id": run_id, "dataset": str(dataset_path), "metadata": str(metadata_path), "report": str(report_path), "parameter_selection": str(selection_path), "trial_ledger": str(ledger_path), "windows": len(result.test_results)}, indent=2))
+    report = clean(report)
+    acceptance = evaluate_acceptance(report, metadata)
+    report["acceptance"] = acceptance
+    report_path.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
+
+    oos_bootstrap = robustness.get("oos_daily_block_bootstrap", {}).get("total_return", {})
+    oos_sharpe = robustness.get("oos_daily_block_bootstrap", {}).get("sharpe", {})
+    oos_psr = robustness.get("oos_confirmation_psr", {})
+    registry_row = {
+        "run_id": run_id,
+        "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+        "git_commit": metadata["git_commit"],
+        "protocol_version": protocol["protocol_version"],
+        "protocol_sha256": protocol["protocol_sha256"],
+        "dataset_sha256": sha,
+        "strategy": a.strategy,
+        "symbol": a.symbol.upper(),
+        "requested_start": a.start,
+        "requested_end": a.end,
+        "provider": a.provider,
+        "interval": a.interval,
+        "windows": len(result.test_results),
+        "nominal_candidate_trials": int(len(selection_metrics)),
+        "oos_observations": int(robustness.get("oos_observations", 0)),
+        "oos_total_return": oos_bootstrap.get("estimate"),
+        "oos_sharpe": oos_sharpe.get("estimate"),
+        "oos_psr": oos_psr.get("probability"),
+        "decision": acceptance["decision"],
+        "reasons_json": acceptance["reasons"],
+        "warnings_json": acceptance["warnings"],
+    }
+    append_registry(ROOT / "experiments" / "registry.csv", registry_row)
+    registry_row_path.write_text(json.dumps(registry_row, indent=2, sort_keys=True), encoding="utf-8")
+
+    print(json.dumps({
+        "run_id": run_id,
+        "dataset": str(dataset_path),
+        "metadata": str(metadata_path),
+        "report": str(report_path),
+        "parameter_selection": str(selection_path),
+        "trial_ledger": str(ledger_path),
+        "registry": "experiments/registry.csv",
+        "decision": acceptance["decision"],
+        "reasons": acceptance["reasons"],
+        "windows": len(result.test_results),
+    }, indent=2))
     return 0
 
 
