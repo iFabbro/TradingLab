@@ -126,7 +126,7 @@ src/                    Core research, risk, execution and state modules
 scripts/                CLI runners, research utilities and safe demo
 tests/                  Automated tests
 config/                 Versioned example configuration
- data/                  Small versioned fixtures / sample data
+data/                   Small versioned fixtures / sample data
 docs/                   Project and data documentation
 .github/                Issue, PR and CI configuration
 ```
