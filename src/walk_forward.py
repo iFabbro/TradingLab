@@ -39,8 +39,8 @@ class WalkForwardEvaluator:
 
     The strategy factory receives training data only. The returned strategy is
     frozen, then evaluated on validation and test slices without refitting.
-    Strategies derived from BaseStrategy use their point-in-time signal adapter
-    so a signal at t can only use observations available through t.
+    Historical observations preceding each evaluation slice are supplied only
+    to the signal generator so indicators have the correct warm-up context.
     """
 
     def __init__(self, train_size: int, validation_size: int, test_size: int, step_size: int | None = None) -> None:
@@ -72,11 +72,12 @@ class WalkForwardEvaluator:
         return result
 
     @staticmethod
-    def _signals(strategy: Any, data: pd.DataFrame) -> pd.Series:
+    def _signals(strategy: Any, history: pd.DataFrame, evaluation_index: pd.DatetimeIndex) -> pd.Series:
         generator = getattr(strategy, "generate_time_series_signals", None)
         if generator is None:
             raise TypeError("strategy must implement generate_time_series_signals for walk-forward evaluation")
-        return generator(data)
+        signals = generator(history)
+        return signals.loc[evaluation_index]
 
     def evaluate(self, prices: pd.DataFrame, strategy_factory: Callable[[pd.DataFrame], Any], backtest_factory: Callable[[], BacktestEngine] | None = None) -> WalkForwardResult:
         prices = prices.sort_index()
@@ -91,13 +92,15 @@ class WalkForwardEvaluator:
             test = prices.loc[window.test_start : window.test_end]
 
             strategy = strategy_factory(train)
-            validation_signals = self._signals(strategy, validation)
+            validation_history = pd.concat([train, validation])
+            validation_signals = self._signals(strategy, validation_history, validation.index)
             validation_engine = backtest_factory() if backtest_factory else BacktestEngine()
-            validation_result = validation_engine.run(validation.assign(signal=validation_signals), _SeriesSignalStrategy(validation_signals, strategy))
+            validation_result = validation_engine.run(validation, _SeriesSignalStrategy(validation_signals, strategy))
 
-            test_signals = self._signals(strategy, test)
+            test_history = pd.concat([train, validation, test])
+            test_signals = self._signals(strategy, test_history, test.index)
             test_engine = backtest_factory() if backtest_factory else BacktestEngine()
-            test_result = test_engine.run(test.assign(signal=test_signals), _SeriesSignalStrategy(test_signals, strategy))
+            test_result = test_engine.run(test, _SeriesSignalStrategy(test_signals, strategy))
 
             validation_results.append(validation_result)
             test_results.append(test_result)
