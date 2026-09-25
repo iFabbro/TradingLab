@@ -21,7 +21,11 @@ def evaluate_safety(
     current_exposure: float = 0.0,
     requested_position_size: int = 0,
 ) -> dict:
-    blocked_reasons = []
+    """Evaluate hard execution gates before an order can be built."""
+    if requested_position_size <= 0:
+        return {"allowed": False, "blocked_reasons": ["invalid_position_size"], "dry_run": policy.dry_run, "paper_live": policy.paper_live}
+
+    blocked_reasons: list[str] = []
     if policy.kill_switch:
         blocked_reasons.append("kill_switch")
     if policy.daily_loss_limit > 0 and current_daily_loss >= policy.daily_loss_limit:
@@ -33,9 +37,8 @@ def evaluate_safety(
     if policy.max_position_size > 0 and requested_position_size > policy.max_position_size:
         blocked_reasons.append("max_position_size")
 
-    allowed = not blocked_reasons
     return {
-        "allowed": allowed,
+        "allowed": not blocked_reasons,
         "blocked_reasons": blocked_reasons,
         "dry_run": policy.dry_run,
         "paper_live": policy.paper_live,
