@@ -32,16 +32,18 @@ def base_config(**kwargs) -> StrategyConfig:
 
 def test_config_validate_ok():
     cfg = base_config()
-    cfg.validate()  # non deve sollevare eccezioni
+    cfg.validate()
+
 
 def test_config_validate_empty_universe():
     cfg = base_config(universe=[])
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError, match="universe cannot be empty"):
         cfg.validate()
+
 
 def test_config_validate_bad_freq():
     cfg = base_config(rebalance_freq="quarterly")
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError, match="invalid rebalance_freq"):
         cfg.validate()
 
 
@@ -53,10 +55,13 @@ def test_momentum_returns_series(prices):
     assert isinstance(sig, pd.Series)
     assert set(sig.index) == set(TICKERS)
 
-def test_momentum_top_n(prices):
+
+def test_momentum_top_n_returns_two_nonzero_scores(prices):
     strat = MomentumStrategy(base_config(top_n=2))
     sig = strat.generate_signals(prices)
-    assert sig.sum() == pytest.approx(2.0)
+    assert int((sig != 0).sum()) == 2
+    assert (sig[sig != 0] == sig.nlargest(2)).all()
+
 
 def test_momentum_repr():
     strat = MomentumStrategy(base_config())
@@ -70,6 +75,7 @@ def test_mean_reversion_long_only(prices):
     sig = strat.generate_signals(prices)
     assert (sig >= 0).all()
 
+
 def test_mean_reversion_shape(prices):
     strat = MeanReversionStrategy(base_config())
     sig = strat.generate_signals(prices)
@@ -82,6 +88,7 @@ def test_trend_binary(prices):
     strat = TrendFollowingStrategy(base_config(params={"fast": 10, "slow": 30}))
     sig = strat.generate_signals(prices)
     assert set(sig.unique()).issubset({0.0, 1.0})
+
 
 def test_trend_insufficient_data(prices):
     strat = TrendFollowingStrategy(base_config(lookback=200))
