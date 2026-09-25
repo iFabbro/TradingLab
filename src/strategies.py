@@ -61,7 +61,14 @@ class BaseStrategy:
 
 
 class MomentumStrategy(BaseStrategy):
-    """Select assets by cross-sectional trailing price momentum."""
+    """Return trailing momentum scores, optionally restricted to the top-N assets.
+
+    Contract: the returned Series is indexed by the input assets and contains
+    continuous momentum scores. When ``top_n`` is set, only the selected
+    assets retain their score and all other assets are exactly zero. The
+    strategy does not normalize the surviving scores to binary selections or
+    to portfolio weights; portfolio sizing is a separate layer.
+    """
 
     def generate_signals(self, prices: pd.DataFrame) -> pd.Series:
         skip = max(0, int(self.config.params.get("skip_last", 1)))
