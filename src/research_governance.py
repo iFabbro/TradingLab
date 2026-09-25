@@ -48,10 +48,10 @@ def evaluate_acceptance(report: dict[str, Any], metadata: dict[str, Any]) -> dic
 
     frictions = provenance.get("frictions", {})
     if _finite(frictions.get("transaction_cost_bps")) != 5.0:
-        reasons.append("transaction_cost_bps must equal the protocol baseline of 5")
+        reasons.append("transaction_cost_bps must equal the protocol baseline of 5 bps")
         hard_fail = True
     if _finite(frictions.get("slippage_bps")) != 2.0:
-        reasons.append("slippage_bps must equal the protocol baseline of 2")
+        reasons.append("slippage_bps must equal the protocol baseline of 2 bps")
         hard_fail = True
     if not provenance.get("dataset_sha256"):
         reasons.append("dataset provenance hash is missing")
