@@ -14,7 +14,10 @@ class ConstantTimeStrategy:
         self.lookback = lookback
 
     def generate_time_series_signals(self, history):
-        return pd.Series(1.0, index=history.index)
+        # Alternate long/short exposure so the audit test necessarily exercises
+        # transaction costs and slippage instead of remaining at constant exposure.
+        values = np.where(np.arange(len(history)) % 2 == 0, 1.0, -1.0)
+        return pd.Series(values, index=history.index)
 
 
 def _prices(periods=12):
@@ -52,6 +55,8 @@ def test_gross_net_replay_has_identical_windows_and_net_cost_drag(tmp_path):
     comparison = gross_net_report(net_results, gross_results)
     assert len(comparison["windows"]) == 2
     assert comparison["aggregate"]["gross_total_return"] > comparison["aggregate"]["net_total_return"]
+    assert comparison["aggregate"]["friction_drag_total_return"] > 0
+    assert comparison["aggregate"]["friction_drag_sharpe"] >= 0
 
 
 def test_trade_log_artifact_preserves_window_and_parameter_provenance(tmp_path):
