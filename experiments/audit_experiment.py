@@ -12,11 +12,7 @@ from src.backtest import BacktestEngine
 from src.strategies import MeanReversionStrategy, MomentumStrategy, StrategyConfig, TrendFollowingStrategy
 from src.walk_forward import WalkForwardEvaluator
 
-STRATEGIES = {
-    "momentum": MomentumStrategy,
-    "mean_reversion": MeanReversionStrategy,
-    "trend": TrendFollowingStrategy,
-}
+STRATEGIES = {"momentum": MomentumStrategy, "mean_reversion": MeanReversionStrategy, "trend": TrendFollowingStrategy}
 
 
 def parse_args():
@@ -96,13 +92,13 @@ def main():
     selected = report["selected_parameters"]
     walk = metadata["walk_forward"]
     friction = metadata["frictions"]
+    net_cost = float(friction.get("net_transaction_cost_bps", friction.get("transaction_cost_bps", 0.0)))
+    net_slippage = float(friction.get("net_slippage_bps", friction.get("slippage_bps", 0.0)))
     strategy_name = metadata["strategy"]
     symbol = metadata["symbol"]
     strategy_cls = STRATEGIES[strategy_name]
 
-    evaluator = WalkForwardEvaluator(
-        walk["train_size"], walk["validation_size"], walk["test_size"], walk.get("step_size")
-    )
+    evaluator = WalkForwardEvaluator(walk["train_size"], walk["validation_size"], walk["test_size"], walk.get("step_size"))
     windows = evaluator.windows(prices.index)
     if len(windows) != len(selected):
         raise ValueError("selected parameter count does not match walk-forward windows")
@@ -136,18 +132,8 @@ def main():
         test = prices.loc[window.test_start:window.test_end]
         history = pd.concat([train, validation, test])
         frozen = strategy_factory(train, selected[i - 1])
-        net_results.append(
-            evaluator._run_candidate(
-                frozen, history, test.index, test,
-                engine_factory(friction["net_transaction_cost_bps"], friction["net_slippage_bps"], "net"),
-            )
-        )
-        gross_results.append(
-            evaluator._run_candidate(
-                frozen, history, test.index, test,
-                engine_factory(0.0, 0.0, "gross"),
-            )
-        )
+        net_results.append(evaluator._run_candidate(frozen, history, test.index, test, engine_factory(net_cost, net_slippage, "net")))
+        gross_results.append(evaluator._run_candidate(frozen, history, test.index, test, engine_factory(0.0, 0.0, "gross")))
 
     trade_net = trade_log_artifact(net_results, windows, selected, "net")
     trade_gross = trade_log_artifact(gross_results, windows, selected, "gross")
@@ -165,8 +151,8 @@ def main():
         "same_oos_windows": True,
         "gross_costs_bps": 0.0,
         "gross_slippage_bps": 0.0,
-        "net_transaction_cost_bps": friction["net_transaction_cost_bps"],
-        "net_slippage_bps": friction["net_slippage_bps"],
+        "net_transaction_cost_bps": net_cost,
+        "net_slippage_bps": net_slippage,
     }
     report_path.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
     return 0
