@@ -37,15 +37,33 @@ def degradation(is_metric: float, oos_metric: float) -> float:
     return float((is_metric - oos_metric) / abs(is_metric))
 
 
-def multiple_testing_diagnostics(candidate_count: int, best_validation_sharpe: float) -> dict:
-    """Expose selection burden; this is not a full deflated-Sharpe correction."""
+def deflated_sharpe_score(observed_sharpe: float, trials: int, observations: int) -> float:
+    """Approximate DSR-style score accounting for the number of trials.
+
+    This is a diagnostic, not a full Bailey-López de Prado DSR implementation:
+    the exact effective number of independent trials is generally unknown.
+    """
+    if trials < 1 or observations < 2:
+        raise ValueError("trials must be >= 1 and observations >= 2")
+    if not np.isfinite(observed_sharpe):
+        return float("nan")
+    from statistics import NormalDist
+    p = max(1e-12, min(1 - 1e-12, 1 - 1 / trials))
+    expected_max = NormalDist().inv_cdf(p)
+    standard_error = 1 / math.sqrt(observations)
+    return float((observed_sharpe - expected_max) / standard_error)
+
+
+def multiple_testing_diagnostics(candidate_count: int, best_validation_sharpe: float, observations: int = 2) -> dict:
+    """Return selection burden and an approximate deflated-Sharpe diagnostic."""
     if candidate_count < 1:
         raise ValueError("candidate_count must be >= 1")
     return {
         "candidate_count": int(candidate_count),
         "best_validation_sharpe": float(best_validation_sharpe),
         "selection_log_penalty": float(math.log(candidate_count)),
-        "warning": "best validation performance is selection-biased when multiple candidates are tested",
+        "deflated_sharpe_score": deflated_sharpe_score(best_validation_sharpe, candidate_count, observations),
+        "warning": "DSR is approximate; dependent trials require an effective-trials model",
     }
 
 
