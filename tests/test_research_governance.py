@@ -1,5 +1,3 @@
-import json
-
 from src.research_governance import evaluate_acceptance, protocol_fingerprint
 
 
@@ -8,6 +6,7 @@ def _report(total_returns):
         "provenance": {
             "git_commit": "abc123",
             "dataset_sha256": "dataset",
+            "research_protocol": {"protocol_version": "1.0", "protocol_sha256": "protocol"},
             "frictions": {"transaction_cost_bps": 5.0, "slippage_bps": 2.0},
         },
         "test_metrics": [{"total_return": value} for value in total_returns],
