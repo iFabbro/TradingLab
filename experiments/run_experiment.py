@@ -168,7 +168,7 @@ def main():
     selection_metrics.to_csv(selection_path, index=False)
     selection_metrics.to_csv(ledger_path, index=False)
 
-    robustness = result.robustness_report(a.confidence, a.bootstrap_samples, a.oos_block_length)
+    robustness = clean(result.robustness_report(a.confidence, a.bootstrap_samples, a.oos_block_length))
     report = {
         "provenance": metadata,
         "windows": result.windows,
