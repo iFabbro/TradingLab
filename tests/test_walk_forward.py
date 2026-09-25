@@ -35,8 +35,9 @@ def test_factory_only_receives_training_slice():
 
     result = WalkForwardEvaluator(30, 10, 10).evaluate(prices, tracking_factory)
     assert len(seen) == len(result.windows)
-    for start, end in seen:
-        assert end < result.windows.iloc[len(seen) - 1]["test_start"] if False else True
+    for i, (_, train_end) in enumerate(seen):
+        assert train_end < result.windows.iloc[i]["validation_start"]
+        assert train_end < result.windows.iloc[i]["test_start"]
     assert all(len(r.metrics) > 0 for r in result.test_results)
 
 
