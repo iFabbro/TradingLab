@@ -3,10 +3,12 @@ name: Quant Experiment
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'experiments/registry.csv'
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   experiment:
@@ -55,6 +57,15 @@ jobs:
           test -s experiments/results/spy_momentum_2015-01-01_2025-01-01_1d_yfinance/trade_log_oos_all.csv
           test -s experiments/results/spy_momentum_2015-01-01_2025-01-01_1d_yfinance/gross_vs_net_oos.csv
           test -s experiments/results/spy_momentum_2015-01-01_2025-01-01_1d_yfinance/gross_vs_net_oos.json
+          test -s experiments/registry.csv
+
+      - name: Persist research registry
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add experiments/registry.csv
+          git diff --cached --quiet || git commit -m "chore: update research registry"
+          git push
 
       - name: Upload experiment artifacts
         if: always()
