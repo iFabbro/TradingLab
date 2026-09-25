@@ -41,6 +41,45 @@ def test_factory_only_receives_training_slice():
     assert all(len(r.metrics) > 0 for r in result.test_results)
 
 
+def test_parameter_selection_uses_validation_only():
+    prices = make_prices(80)
+    calls = []
+
+    class Candidate:
+        def __init__(self, train, params):
+            self.params = params
+            self.config = None
+            calls.append((params["exposure"], train.index[-1]))
+
+        def generate_time_series_signals(self, history):
+            return pd.Series(self.params["exposure"], index=history.index, dtype=float)
+
+    def candidate_factory(train, params):
+        return Candidate(train, params)
+
+    result = WalkForwardEvaluator(40, 20, 20).evaluate(
+        prices,
+        candidate_factory,
+        parameter_grid={"exposure": [0.0, 1.0]},
+        selection_metric="total_return",
+    )
+
+    assert result.selected_parameters[0] == {"exposure": 1.0}
+    assert len(result.selection_results[0]) == 2
+    assert result.selection_results[0]["status"].eq("ok").all()
+    assert result.windows.iloc[0]["selected_parameters"] == {"exposure": 1.0}
+
+    validation_start = result.windows.iloc[0]["validation_start"]
+    test_start = result.windows.iloc[0]["test_start"]
+    assert all(train_end < validation_start for _, train_end in calls)
+    assert all(train_end < test_start for _, train_end in calls)
+
+
+def test_selection_grid_rejects_empty_options():
+    with pytest.raises(ValueError):
+        WalkForwardEvaluator(10, 5, 5)._parameter_combinations({"lookback": []})
+
+
 def test_insufficient_data_returns_no_windows():
     evaluator = WalkForwardEvaluator(30, 10, 10)
     assert evaluator.windows(make_prices(49).index) == []
