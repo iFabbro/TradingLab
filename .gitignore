@@ -13,16 +13,22 @@ build/
 venv/
 env/
 
+# Test / coverage artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+
 # Jupyter
 .ipynb_checkpoints/
 *.ipynb
 
-# Data (non versionare dati grezzi e cache)
+# Data (do not version raw data, caches or generated backtests)
 data/raw/
 data/cache/
 data/backtests/
 
-# Config locali e segreti
+# Local config and secrets
 config/*.yaml
 config/*.env
 .env
@@ -35,11 +41,11 @@ Thumbs.db
 .vscode/
 .idea/
 
+# Generated reports / demo output
 reports/*.csv
-
-data/demo/
 reports/minimal_test/
+data/demo/
 *.bak
 
-# runtime bot state
+# Runtime bot state
 config/bot_state.json
