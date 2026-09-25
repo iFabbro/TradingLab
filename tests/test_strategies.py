@@ -102,13 +102,13 @@ def test_donchian_exits_below_prior_channel():
     assert signal.iloc[7] == 0.0
 
 
-def test_donchian_insufficient_history_is_flat():
+def test_donchian_insufficient_history_is_flat(prices):
     strat = DonchianBreakoutStrategy(base_config(lookback=20))
     sig = strat.generate_signals(prices.iloc[:10])
     assert (sig == 0.0).all()
 
 
-def test_donchian_rejects_invalid_lookback():
+def test_donchian_rejects_invalid_lookback(prices):
     strat = DonchianBreakoutStrategy(StrategyConfig(name="donchian", universe=["SPY"], lookback=1))
     with pytest.raises(ValueError, match="lookback must be > 1"):
         strat.generate_signals(prices.iloc[:10])
