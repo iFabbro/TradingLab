@@ -1,19 +1,23 @@
 # Security Policy
 
-## Supported Versions
+## Scope
 
-This project currently follows the `main` branch and the latest documented release in the changelog.
+TradingLab is a research and supervised-execution project. It is not presented as a production trading system, and no live brokerage credentials belong in the repository.
 
-## Reporting a Vulnerability
+## Reporting a vulnerability
 
-If you discover a security issue, please do not open a public issue.
+Please report security issues privately through GitHub's private vulnerability reporting / Security Advisories for this repository rather than opening a public issue.
 
-Report it privately by email to the repository maintainer and include:
-- a short description of the issue;
-- the affected file or module;
-- steps to reproduce if available;
-- any suggested mitigation.
+Include, when available:
 
-## Response Expectations
+- affected file or component;
+- concise description of the issue;
+- reproduction steps or proof of concept;
+- potential impact;
+- suggested mitigation.
 
-Security reports will be reviewed as soon as possible, and the reporter may be contacted for clarification if needed.
+## Secrets
+
+Never commit API keys, access tokens, passwords, private keys, broker credentials, `.env` files, or local runtime state. Use environment variables or local configuration that is excluded by `.gitignore`.
+
+If a secret is accidentally committed, treat it as compromised: revoke or rotate it first, then remove it from the repository history.
