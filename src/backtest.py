@@ -22,21 +22,36 @@ class BacktestResult:
 
 
 class BacktestEngine:
-    """Long-only close-to-close backtester.
+    """Long-only close-to-close backtester with explicit trading frictions.
 
-    A signal at timestamp t is assumed to be known at the close of t and
-    therefore affects returns starting at t+1. This prevents using the
-    current bar's return with information generated from that same bar.
+    A signal at timestamp t is known at the close of t and is applied from
+    t+1. Transaction costs and slippage are charged on exposure changes.
     """
 
-    def __init__(self, initial_capital: float = 100000.0, output_dir: str | Path = "data/backtests", strategy_tag: str = "backtest", ticker: str = "") -> None:
+    def __init__(
+        self,
+        initial_capital: float = 100000.0,
+        output_dir: str | Path = "data/backtests",
+        strategy_tag: str = "backtest",
+        ticker: str = "",
+        transaction_cost_bps: float = 0.0,
+        slippage_bps: float = 0.0,
+    ) -> None:
         if initial_capital <= 0:
             raise ValueError("initial_capital must be > 0")
+        if transaction_cost_bps < 0 or slippage_bps < 0:
+            raise ValueError("transaction_cost_bps and slippage_bps must be >= 0")
         self.initial_capital = float(initial_capital)
         self.output_dir = Path(output_dir)
         self.strategy_tag = strategy_tag
         self.ticker = ticker
+        self.transaction_cost_bps = float(transaction_cost_bps)
+        self.slippage_bps = float(slippage_bps)
         self.output_dir.mkdir(parents=True, exist_ok=True)
+
+    @property
+    def friction_rate(self) -> float:
+        return (self.transaction_cost_bps + self.slippage_bps) / 10_000.0
 
     def run(self, prices: pd.DataFrame, strategy) -> BacktestResult:
         prices = self._validate_prices(prices)
@@ -82,8 +97,11 @@ class BacktestEngine:
 
     def _build_equity_curve(self, close: pd.Series, exposure: pd.Series) -> pd.Series:
         returns = close.pct_change().fillna(0.0)
-        # Signal at t is applied from t+1 onward: no same-bar look-ahead.
-        strategy_returns = returns * exposure.shift(1).fillna(0.0)
+        held_exposure = exposure.shift(1).fillna(0.0)
+        gross_returns = returns * held_exposure
+        turnover = exposure.diff().abs().fillna(exposure.abs())
+        friction = turnover * self.friction_rate
+        strategy_returns = gross_returns - friction
         equity = self.initial_capital * (1.0 + strategy_returns).cumprod()
         equity.name = "equity"
         return equity
@@ -119,7 +137,10 @@ class BacktestEngine:
                 exit_idx = timestamp
                 exit_price = float(prices.loc[exit_idx, "close"])
                 quantity = (entry_equity * entry_exposure) / entry_price
-                pnl = (exit_price - entry_price) * quantity
+                gross_pnl = (exit_price - entry_price) * quantity
+                turnover_value = entry_equity * entry_exposure + float(equity_curve.loc[exit_idx]) * current
+                costs = turnover_value * self.friction_rate
+                pnl = gross_pnl - costs
                 bars = int(prices.index.get_loc(exit_idx) - prices.index.get_loc(entry_idx))
                 rows.append({
                     "ticker": ticker,
@@ -209,6 +230,7 @@ class BacktestEngine:
             days = (equity_curve.index[-1] - equity_curve.index[0]).days
             if days > 0 and equity_curve.iloc[-1] > 0:
                 cagr = float((equity_curve.iloc[-1] / equity_curve.iloc[0]) ** (365.25 / days) - 1.0)
+        turnover = float(exposure_turnover(self._last_exposure) if hasattr(self, "_last_exposure") else 0.0)
         return {
             "total_return": total_return,
             "cagr": cagr,
@@ -217,6 +239,9 @@ class BacktestEngine:
             "win_rate": win_rate,
             "profit_factor": profit_factor,
             "n_trades": n_trades,
+            "turnover": turnover,
+            "transaction_cost_bps": self.transaction_cost_bps,
+            "slippage_bps": self.slippage_bps,
             "warning_nonpositive_sharpe": bool(sharpe <= 0.0),
         }
 
@@ -251,7 +276,15 @@ class BacktestEngine:
             "avg_rr": avg_rr,
             "sharpe": metrics["sharpe"],
             "sortino": sortino,
+            "turnover": metrics["turnover"],
+            "transaction_cost_bps": self.transaction_cost_bps,
+            "slippage_bps": self.slippage_bps,
             "warning_low_pf": bool(pf < 1.2),
             "warning_nonpositive_sharpe": metrics["warning_nonpositive_sharpe"],
         }])
         validate_risk_summary(risk).to_csv(self.output_dir / "risk_summary.csv", index=False)
+
+
+def exposure_turnover(exposure: pd.Series) -> float:
+    """Return gross absolute exposure change over the backtest."""
+    return float(exposure.diff().abs().fillna(exposure.abs()).sum())
