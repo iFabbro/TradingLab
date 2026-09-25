@@ -1,0 +1,50 @@
+name: Quant Experiment
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  experiment:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run reproducible OOS experiment
+        run: |
+          python experiments/run_experiment.py \
+            --symbol spy \
+            --start 2015-01-01 \
+            --end 2025-01-01 \
+            --strategy momentum \
+            --parameter-grid '{"lookback":[20,40,60,120]}' \
+            --train-size 756 \
+            --validation-size 252 \
+            --test-size 252 \
+            --step-size 252 \
+            --transaction-cost-bps 5 \
+            --slippage-bps 2 \
+            --bootstrap-samples 5000 \
+            --confidence 0.95
+
+      - name: Upload experiment artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: quant-experiment-spy-momentum
+          path: experiments/results/
+          if-no-files-found: error
