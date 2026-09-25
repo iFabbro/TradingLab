@@ -41,6 +41,11 @@ def evaluate_acceptance(report: dict[str, Any], metadata: dict[str, Any]) -> dic
     hard_fail = False
 
     provenance = report.get("provenance", metadata)
+    protocol = provenance.get("research_protocol", {})
+    if not protocol.get("protocol_version") or not protocol.get("protocol_sha256"):
+        reasons.append("research protocol fingerprint is missing")
+        hard_fail = True
+
     frictions = provenance.get("frictions", {})
     if _finite(frictions.get("transaction_cost_bps")) != 5.0:
         reasons.append("transaction_cost_bps must equal the protocol baseline of 5")
@@ -78,7 +83,10 @@ def evaluate_acceptance(report: dict[str, Any], metadata: dict[str, Any]) -> dic
             hard_fail = True
 
         positive_windows = sum(x > 0 for x in returns)
-        if len(returns) > 1 and positive_windows < 2:
+        if len(returns) < 2:
+            reasons.append("candidate status requires at least two OOS windows")
+            hard_fail = True
+        elif positive_windows < 2:
             reasons.append("OOS result is positive in fewer than two windows")
             hard_fail = True
 
