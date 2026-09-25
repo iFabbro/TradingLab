@@ -5,7 +5,7 @@ from typing import Optional
 
 import pandas as pd
 
-from src.factors import momentum_score, value_score, volatility_score, trend_score
+from src.factors import momentum_score, mean_deviation_score, volatility_score, trend_score
 
 
 @dataclass
@@ -44,18 +44,16 @@ class BaseStrategy:
 
 
 class MomentumStrategy(BaseStrategy):
-    """Select assets by cross-sectional momentum over the configured lookback."""
+    """Select assets by cross-sectional trailing price momentum."""
 
     def generate_signals(self, prices: pd.DataFrame) -> pd.Series:
-        if prices.empty or len(prices) < self.config.lookback + self.config.params.get("skip_last", 1):
-            return pd.Series(0.0, index=prices.columns)
-
         skip = max(0, int(self.config.params.get("skip_last", 1)))
+        if len(prices) < self.config.lookback + skip:
+            return pd.Series(0.0, index=prices.columns)
         end_idx = len(prices) - skip if skip else len(prices)
         start_idx = end_idx - self.config.lookback
         window = prices.iloc[start_idx:end_idx]
         scores = ((window.iloc[-1] / window.iloc[0]) - 1).replace([float("inf"), -float("inf")], 0).fillna(0.0)
-
         if self.config.top_n is not None:
             selected = scores.nlargest(self.config.top_n).index
             return scores.where(scores.index.isin(selected), 0.0)
@@ -63,7 +61,7 @@ class MomentumStrategy(BaseStrategy):
 
 
 class MeanReversionStrategy(BaseStrategy):
-    """Generate long-only reversion scores from price z-scores."""
+    """Generate long-only reversion scores from trailing price z-scores."""
 
     def generate_signals(self, prices: pd.DataFrame) -> pd.Series:
         if len(prices) < self.config.lookback:
@@ -94,14 +92,16 @@ class TrendFollowingStrategy(BaseStrategy):
 
 
 class MultiFactorStrategy:
-    """Combine momentum, value, volatility and trend scores into one signal."""
+    """Combine price momentum, mean deviation, volatility and trend scores."""
 
-    DEFAULT_WEIGHTS = {"momentum": 0.4, "value": 0.2, "volatility": 0.2, "trend": 0.2}
+    DEFAULT_WEIGHTS = {"momentum": 0.4, "mean_deviation": 0.2, "volatility": 0.2, "trend": 0.2}
 
     def __init__(self, weights: dict | None = None):
         w = dict(weights or self.DEFAULT_WEIGHTS)
         if set(w) != set(self.DEFAULT_WEIGHTS):
             raise ValueError(f"weights must contain {set(self.DEFAULT_WEIGHTS)}")
+        if any(value < 0 for value in w.values()):
+            raise ValueError("weights must be >= 0")
         total = sum(w.values())
         if total <= 0:
             raise ValueError("weight sum must be > 0")
@@ -110,7 +110,7 @@ class MultiFactorStrategy:
     def score(self, prices: pd.Series) -> float:
         factors = {
             "momentum": momentum_score(prices),
-            "value": value_score(prices),
+            "mean_deviation": mean_deviation_score(prices),
             "volatility": volatility_score(prices),
             "trend": trend_score(prices),
         }
