@@ -19,10 +19,10 @@ sys.path.insert(0, str(ROOT))
 from src.backtest import BacktestEngine
 from src.providers import StooqCSVProvider, YahooFinanceProvider, save_dataset, save_metadata
 from src.research_governance import append_registry, evaluate_acceptance, protocol_fingerprint
-from src.strategies import MeanReversionStrategy, MomentumStrategy, StrategyConfig, TrendFollowingStrategy
+from src.strategies import DonchianBreakoutStrategy, MeanReversionStrategy, MomentumStrategy, StrategyConfig, TrendFollowingStrategy
 from src.walk_forward import WalkForwardEvaluator
 
-STRATEGIES = {"momentum": MomentumStrategy, "mean_reversion": MeanReversionStrategy, "trend": TrendFollowingStrategy}
+STRATEGIES = {"momentum": MomentumStrategy, "mean_reversion": MeanReversionStrategy, "trend": TrendFollowingStrategy, "donchian": DonchianBreakoutStrategy}
 PROVIDERS = {"stooq": StooqCSVProvider, "yfinance": YahooFinanceProvider}
 PROTOCOL_TRANSACTION_COST_BPS = 5.0
 PROTOCOL_SLIPPAGE_BPS = 2.0
