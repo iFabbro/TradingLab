@@ -6,6 +6,7 @@ import pytest
 
 from scripts.run_bot import _load_risk_check
 from src.execution import ExecutionEngine
+from src.safety import SafetyPolicy, evaluate_safety
 
 
 def test_execution_engine_builds_order_intent():
@@ -41,8 +42,7 @@ def test_execution_engine_submit_order_retries_then_fails():
 
 
 def test_execution_engine_submit_order_without_provider_is_simulated():
-    result = ExecutionEngine().submit_order({"ticker": "TEST"})
-    assert result["status"] == "simulated"
+    assert ExecutionEngine().submit_order({"ticker": "TEST"})["status"] == "simulated"
 
 
 def test_execution_engine_place_order_returns_explicit_stub_simulation():
@@ -52,11 +52,34 @@ def test_execution_engine_place_order_returns_explicit_stub_simulation():
     assert result["order_id"] == "stub-TEST-long-2"
 
 
+def test_safety_kill_switch_blocks():
+    result = evaluate_safety(SafetyPolicy(kill_switch=True), requested_position_size=1)
+    assert result["allowed"] is False
+    assert "kill_switch" in result["blocked_reasons"]
+
+
+def test_safety_rejects_invalid_position_size():
+    result = evaluate_safety(SafetyPolicy(), requested_position_size=0)
+    assert result["allowed"] is False
+    assert result["blocked_reasons"] == ["invalid_position_size"]
+
+
+def test_safety_position_limit_blocks():
+    result = evaluate_safety(SafetyPolicy(max_position_size=5), requested_position_size=6)
+    assert result["allowed"] is False
+    assert "max_position_size" in result["blocked_reasons"]
+
+
+def test_safety_valid_request_is_allowed():
+    result = evaluate_safety(SafetyPolicy(max_position_size=5), requested_position_size=2)
+    assert result["allowed"] is True
+    assert result["blocked_reasons"] == []
+
+
 def test_load_risk_check_accepts_csv(tmp_path):
     path = tmp_path / "risk_summary.csv"
     pd.DataFrame([{"n_trades": 10, "win_rate": 0.5, "profit_factor": 1.5, "avg_rr": 1.2, "sharpe": 0.8, "sortino": 1.1, "warning_low_pf": False, "warning_nonpositive_sharpe": False}]).to_csv(path, index=False)
-    risk_check = _load_risk_check(str(path))
-    assert risk_check["allowed"] is True
+    assert _load_risk_check(str(path))["allowed"] is True
 
 
 def _write_risk(path):
@@ -94,5 +117,4 @@ def test_run_bot_paper_live_uses_stub_simulation(tmp_path, capsys):
     out = capsys.readouterr().out
     assert "status: simulated" in out
     assert "paper_live: True" in out
-    data = json.loads(state.read_text())
-    assert data["last_status"] == "simulated"
+    assert json.loads(state.read_text())["last_status"] == "simulated"
