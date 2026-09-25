@@ -42,6 +42,7 @@ def parse_args():
     p.add_argument("--slippage-bps", type=float, default=0.0)
     p.add_argument("--bootstrap-samples", type=int, default=5000)
     p.add_argument("--confidence", type=float, default=0.95)
+    p.add_argument("--oos-block-length", type=int, default=None)
     p.add_argument("--output-root", default="experiments/results")
     return p.parse_args()
 
@@ -90,8 +91,13 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     dataset_path, metadata_path = out / "dataset.csv", out / "metadata.json"
     report_path, selection_path = out / "report.json", out / "parameter_selection.csv"
+    ledger_path = out / "research_trial_ledger.csv"
 
     sha = save_dataset(df, dataset_path)
+    candidate_count = 1
+    for values in grid.values():
+        values = list(values)
+        candidate_count *= len(values)
     metadata = {
         "run_id": run_id,
         "git_commit": git_commit(),
@@ -108,7 +114,15 @@ def main():
         "walk_forward": {"train_size": a.train_size, "validation_size": a.validation_size, "test_size": a.test_size, "step_size": a.step_size},
         "frictions": {"transaction_cost_bps": a.transaction_cost_bps, "slippage_bps": a.slippage_bps},
         "parameter_grid": grid,
+        "nominal_candidates_per_window": candidate_count,
         "selection_metric": a.selection_metric,
+        "inference": {
+            "confidence": a.confidence,
+            "bootstrap_samples": a.bootstrap_samples,
+            "oos_block_length": a.oos_block_length,
+            "trial_ledger": "research_trial_ledger.csv",
+            "dsr": "nominal candidate count per validation window; effective independent trials are not assumed known",
+        },
     }
     save_metadata(metadata, metadata_path)
 
@@ -138,7 +152,11 @@ def main():
     result = WalkForwardEvaluator(a.train_size, a.validation_size, a.test_size, a.step_size).evaluate(
         df, factory, bt, grid, a.selection_metric, a.selection_metric != "max_drawdown"
     )
-    result.selection_metrics.to_csv(selection_path, index=False)
+    selection_metrics = result.selection_metrics
+    selection_metrics.to_csv(selection_path, index=False)
+    selection_metrics.to_csv(ledger_path, index=False)
+
+    robustness = result.robustness_report(a.confidence, a.bootstrap_samples, a.oos_block_length)
     report = {
         "provenance": metadata,
         "windows": result.windows,
@@ -146,10 +164,12 @@ def main():
         "train_metrics": result.train_metrics,
         "validation_metrics": result.validation_metrics,
         "test_metrics": result.test_metrics,
-        "robustness": result.robustness_report(a.confidence, a.bootstrap_samples),
+        "research_trial_ledger": ledger_path.name,
+        "nominal_total_candidate_trials": int(len(selection_metrics)),
+        "robustness": robustness,
     }
     report_path.write_text(json.dumps(clean(report), indent=2, sort_keys=True), encoding="utf-8")
-    print(json.dumps({"run_id": run_id, "dataset": str(dataset_path), "metadata": str(metadata_path), "report": str(report_path), "parameter_selection": str(selection_path), "windows": len(result.test_results)}, indent=2))
+    print(json.dumps({"run_id": run_id, "dataset": str(dataset_path), "metadata": str(metadata_path), "report": str(report_path), "parameter_selection": str(selection_path), "trial_ledger": str(ledger_path), "windows": len(result.test_results)}, indent=2))
     return 0
 
 
