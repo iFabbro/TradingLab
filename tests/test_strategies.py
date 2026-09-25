@@ -7,6 +7,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from src.strategies import (
     StrategyConfig,
     MomentumStrategy,
+    DonchianBreakoutStrategy,
     MeanReversionStrategy,
     TrendFollowingStrategy,
 )
@@ -68,6 +69,49 @@ def test_momentum_top_n_returns_two_nonzero_scores(prices):
 def test_momentum_repr():
     strat = MomentumStrategy(base_config())
     assert "MomentumStrategy" in repr(strat)
+
+
+# --- DonchianBreakoutStrategy ---
+
+def test_donchian_returns_binary_asset_series(prices):
+    strat = DonchianBreakoutStrategy(base_config(lookback=20))
+    sig = strat.generate_signals(prices)
+    assert isinstance(sig, pd.Series)
+    assert set(sig.index) == set(TICKERS)
+    assert set(sig.unique()).issubset({0.0, 1.0})
+
+
+def test_donchian_no_lookahead_on_entry():
+    index = pd.date_range("2024-01-01", periods=6, freq="B")
+    frame = pd.DataFrame({"close": [100, 101, 99, 100, 102, 105]}, index=index)
+    strat = DonchianBreakoutStrategy(StrategyConfig(name="donchian", universe=["SPY"], lookback=3))
+    signal = strat.generate_time_series_signals(frame)
+    assert signal.iloc[3] == 0.0
+    assert signal.iloc[4] == 1.0
+    assert signal.iloc[5] == 1.0
+
+
+def test_donchian_exits_below_prior_channel():
+    index = pd.date_range("2024-01-01", periods=8, freq="B")
+    frame = pd.DataFrame({"close": [100, 101, 99, 100, 102, 103, 98, 97]}, index=index)
+    strat = DonchianBreakoutStrategy(StrategyConfig(name="donchian", universe=["SPY"], lookback=3))
+    signal = strat.generate_time_series_signals(frame)
+    assert signal.iloc[4] == 1.0
+    assert signal.iloc[5] == 1.0
+    assert signal.iloc[6] == 0.0
+    assert signal.iloc[7] == 0.0
+
+
+def test_donchian_insufficient_history_is_flat():
+    strat = DonchianBreakoutStrategy(base_config(lookback=20))
+    sig = strat.generate_signals(prices.iloc[:10])
+    assert (sig == 0.0).all()
+
+
+def test_donchian_rejects_invalid_lookback():
+    strat = DonchianBreakoutStrategy(StrategyConfig(name="donchian", universe=["SPY"], lookback=1))
+    with pytest.raises(ValueError, match="lookback must be > 1"):
+        strat.generate_signals(prices.iloc[:10])
 
 
 # --- MeanReversionStrategy ---

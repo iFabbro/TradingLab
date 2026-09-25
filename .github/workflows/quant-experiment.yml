@@ -30,15 +30,15 @@ jobs:
       - name: Run test suite before quantitative experiment
         run: pytest -q --cov=src --cov-report=term-missing
 
-      - name: Run reproducible OOS experiment
+      - name: Run reproducible OOS Donchian Breakout experiment
         run: |
           python experiments/run_experiment.py \
             --symbol spy \
             --start 2015-01-01 \
             --end 2025-01-01 \
             --provider yfinance \
-            --strategy momentum \
-            --parameter-grid '{"lookback":[20,40,60,120]}' \
+            --strategy donchian \
+            --parameter-grid '{"lookback":[20,55,100,200]}' \
             --train-size 756 \
             --validation-size 252 \
             --test-size 252 \
@@ -50,13 +50,13 @@ jobs:
             --oos-block-length 20
 
       - name: Build gross-vs-net and full OOS trade audit
-        run: PYTHONPATH="$GITHUB_WORKSPACE" python experiments/audit_experiment.py --run-dir experiments/results/spy_momentum_2015-01-01_2025-01-01_1d_yfinance
+        run: PYTHONPATH="$GITHUB_WORKSPACE" python experiments/audit_experiment.py --run-dir experiments/results/spy_donchian_2015-01-01_2025-01-01_1d_yfinance
 
       - name: Validate audit artifacts
         run: |
-          test -s experiments/results/spy_momentum_2015-01-01_2025-01-01_1d_yfinance/trade_log_oos_all.csv
-          test -s experiments/results/spy_momentum_2015-01-01_2025-01-01_1d_yfinance/gross_vs_net_oos.csv
-          test -s experiments/results/spy_momentum_2015-01-01_2025-01-01_1d_yfinance/gross_vs_net_oos.json
+          test -s experiments/results/spy_donchian_2015-01-01_2025-01-01_1d_yfinance/trade_log_oos_all.csv
+          test -s experiments/results/spy_donchian_2015-01-01_2025-01-01_1d_yfinance/gross_vs_net_oos.csv
+          test -s experiments/results/spy_donchian_2015-01-01_2025-01-01_1d_yfinance/gross_vs_net_oos.json
           test -s experiments/registry.csv
 
       - name: Persist research registry
@@ -71,6 +71,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: quant-experiment-spy-momentum
+          name: quant-experiment-spy-donchian
           path: experiments/results/
           if-no-files-found: warn

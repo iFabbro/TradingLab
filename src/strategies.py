@@ -84,6 +84,44 @@ class MomentumStrategy(BaseStrategy):
         return scores
 
 
+class DonchianBreakoutStrategy(BaseStrategy):
+    """Long-only Donchian channel breakout with point-in-time state.
+
+    For each asset, a long position is entered when today's close exceeds the
+    previous ``lookback`` closes' maximum and is exited when today's close
+    falls below the previous ``lookback`` closes' minimum. Between breakouts
+    and exits the prior position is held. The current bar is never included in
+    the channel used to generate its signal, preventing look-ahead bias.
+    """
+
+    def generate_signals(self, prices: pd.DataFrame) -> pd.Series:
+        if prices.empty:
+            return pd.Series(0.0, index=prices.columns)
+        lookback = int(self.config.lookback)
+        if lookback <= 1:
+            raise ValueError("Donchian lookback must be > 1")
+        if len(prices) <= lookback:
+            return pd.Series(0.0, index=prices.columns, dtype=float)
+
+        signals = pd.Series(0.0, index=prices.columns, dtype=float)
+        for column in prices.columns:
+            series = pd.to_numeric(prices[column], errors="coerce")
+            if series.isna().any() or not (series > 0).all():
+                raise ValueError("Donchian prices must contain positive finite values")
+            state = 0.0
+            for i in range(lookback, len(series)):
+                history = series.iloc[i - lookback:i]
+                close = float(series.iloc[i])
+                upper = float(history.max())
+                lower = float(history.min())
+                if close > upper:
+                    state = 1.0
+                elif close < lower:
+                    state = 0.0
+            signals.loc[column] = state
+        return signals
+
+
 class MeanReversionStrategy(BaseStrategy):
     """Generate long-only reversion scores from trailing price z-scores."""
 
