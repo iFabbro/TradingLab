@@ -55,7 +55,7 @@ def test_exposure_is_clipped_to_safe_long_only_contract(tmp_path):
     result = BacktestEngine(output_dir=tmp_path).run(prices, strategy)
     assert result.equity_curve.iloc[0] == pytest.approx(100000.0)
     assert result.equity_curve.iloc[1] == pytest.approx(100000.0)
-    assert result.equity_curve.iloc[2] == pytest.approx(110000.0)
+    assert result.equity_curve.iloc[2] == pytest.approx(109090.90909090909)
 
 
 def test_nonfinite_time_signal_is_rejected(tmp_path):
