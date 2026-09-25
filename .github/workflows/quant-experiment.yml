@@ -48,7 +48,7 @@ jobs:
             --oos-block-length 20
 
       - name: Build gross-vs-net and full OOS trade audit
-        run: python experiments/audit_experiment.py --run-dir experiments/results/spy_momentum_2015-01-01_2025-01-01_1d_yfinance
+        run: PYTHONPATH="$GITHUB_WORKSPACE" python experiments/audit_experiment.py --run-dir experiments/results/spy_momentum_2015-01-01_2025-01-01_1d_yfinance
 
       - name: Validate audit artifacts
         run: |
