@@ -57,10 +57,6 @@ METRICS_COLUMNS = [
     "win_rate",
     "profit_factor",
     "n_trades",
-    "turnover",
-    "transaction_cost_bps",
-    "slippage_bps",
-    "warning_low_pf",
     "warning_nonpositive_sharpe",
 ]
 
