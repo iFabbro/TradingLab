@@ -83,7 +83,7 @@ class WalkForwardResult:
     def robustness_report(self, confidence=0.95, bootstrap_samples=5000, oos_block_length=None):
         train, validation, test = self.train_metrics, self.validation_metrics, self.test_metrics
         report = {
-            "inference_version": "2.0",
+            "inference_version": "2.1",
             "train_summary": aggregate_window_metrics(train),
             "validation_summary": aggregate_window_metrics(validation),
             "test_summary": aggregate_window_metrics(test),
@@ -98,21 +98,27 @@ class WalkForwardResult:
                 "Primary daily OOS inference uses a moving-block bootstrap to preserve short-range serial dependence.",
                 "DSR uses the declared nominal candidate count; dependent parameter trials mean the effective independent trial count is not identified exactly.",
                 "A confirmatory OOS set is not selected from the OOS observations; multiple-testing diagnostics are therefore reported on validation selection, not retroactively fitted to OOS.",
+                "Non-finite window metrics are excluded from aggregate summaries and their finite counts are reported explicitly.",
             ],
         }
 
         if not test.empty:
             for metric in ("total_return", "cagr", "sharpe", "max_drawdown", "turnover"):
-                if metric in test and len(test[metric].dropna()) >= 2:
-                    report["oos_window_bootstrap"][metric] = bootstrap_mean_ci(
-                        test[metric].dropna().to_numpy(), confidence, bootstrap_samples
-                    )
+                if metric in test:
+                    finite = test[metric].replace([np.inf, -np.inf], np.nan).dropna()
+                    if len(finite) >= 2:
+                        report["oos_window_bootstrap"][metric] = bootstrap_mean_ci(
+                            finite.to_numpy(), confidence, bootstrap_samples
+                        )
 
         for metric in ("total_return", "cagr", "sharpe", "max_drawdown"):
             if metric in train and metric in test:
-                report["degradation"][metric] = degradation(
-                    float(train[metric].mean()), float(test[metric].mean())
-                )
+                train_values = train[metric].replace([np.inf, -np.inf], np.nan).dropna()
+                test_values = test[metric].replace([np.inf, -np.inf], np.nan).dropna()
+                if len(train_values) and len(test_values):
+                    report["degradation"][metric] = degradation(
+                        float(train_values.mean()), float(test_values.mean()), metric=metric
+                    )
 
         # The selected validation model is the object exposed to DSR/PSR.
         # Every candidate that was actually evaluated is counted in the trial
@@ -130,7 +136,8 @@ class WalkForwardResult:
             report["validation_psr"].append({"window": window_number, **psr})
             report["validation_dsr"].append({"window": window_number, **dsr})
             if "sharpe" in frame:
-                best = float(frame.loc[frame["status"] == "ok", "sharpe"].max()) if "status" in frame else float(frame["sharpe"].max())
+                ok = frame[frame["status"] == "ok"] if "status" in frame else frame
+                best = float(ok["sharpe"].max())
                 report["multiple_testing"].append(
                     {
                         **multiple_testing_diagnostics(candidate_count, best, observations=max(2, len(returns))),
