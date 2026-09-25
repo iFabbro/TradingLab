@@ -25,6 +25,9 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Run test suite before quantitative experiment
+        run: pytest -q --cov=src --cov-report=term-missing
+
       - name: Run reproducible OOS experiment
         run: |
           python experiments/run_experiment.py \
@@ -41,7 +44,8 @@ jobs:
             --transaction-cost-bps 5 \
             --slippage-bps 2 \
             --bootstrap-samples 5000 \
-            --confidence 0.95
+            --confidence 0.95 \
+            --oos-block-length 20
 
       - name: Upload experiment artifacts
         if: always()
