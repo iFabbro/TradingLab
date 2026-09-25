@@ -5,7 +5,7 @@ import pandas as pd
 
 from src.backtest import BacktestEngine
 from src.walk_forward import WalkForwardEvaluator
-from experiments.audit_experiment import gross_net_report, trade_log_artifact
+from experiments.audit_experiment import counterfactual_report, gross_net_report, trade_log_artifact
 
 
 class ConstantTimeStrategy:
@@ -40,7 +40,6 @@ def test_gross_net_replay_has_identical_windows_and_net_cost_drag(tmp_path):
     result = WalkForwardEvaluator(5, 2, 2, 2).evaluate(
         prices, strategy_factory, net_factory, {"lookback": [2, 4]}
     )
-    windows = result.windows
     net_results = []
     gross_results = []
     evaluator = WalkForwardEvaluator(5, 2, 2, 2)
@@ -76,3 +75,39 @@ def test_trade_log_artifact_preserves_window_and_parameter_provenance(tmp_path):
     assert frame["cost_model"].eq("net").all()
     assert frame["phase"].eq("oos").all()
     assert frame["selected_parameters"].map(json.loads).map(lambda x: x["lookback"]).tolist() == [2, 2]
+
+
+def test_fixed_5bps_2bps_counterfactual_is_separate_and_replay_identical_windows(tmp_path):
+    prices = _prices()
+    evaluator = WalkForwardEvaluator(5, 2, 2, 2)
+
+    def strategy_factory(train, params):
+        return ConstantTimeStrategy(params["lookback"])
+
+    def make_engine(cost, slip, name):
+        def factory():
+            return BacktestEngine(output_dir=tmp_path / name, transaction_cost_bps=cost, slippage_bps=slip)
+        return factory
+
+    result = evaluator.evaluate(
+        prices,
+        strategy_factory,
+        make_engine(5, 2, "baseline"),
+        {"lookback": [2]},
+    )
+    windows = evaluator.windows(prices.index)
+    baseline, gross, counterfactual = [], [], []
+    for i, window in enumerate(windows):
+        train = prices.loc[window.train_start:window.train_end]
+        test = prices.loc[window.test_start:window.test_end]
+        history = pd.concat([train, prices.loc[window.validation_start:window.validation_end], test])
+        frozen = strategy_factory(train, result.selected_parameters[i])
+        baseline.append(evaluator._run_candidate(frozen, history, test.index, test, make_engine(5, 2, "baseline")))
+        gross.append(evaluator._run_candidate(frozen, history, test.index, test, make_engine(0, 0, "gross")))
+        counterfactual.append(evaluator._run_candidate(frozen, history, test.index, test, make_engine(5, 2, "counterfactual")))
+
+    report = counterfactual_report(gross, counterfactual, baseline)
+    assert report["scenario"] == {"transaction_cost_bps": 5.0, "slippage_bps": 2.0}
+    assert len(report["windows"]) == 2
+    assert report["aggregate"]["counterfactual_vs_baseline_net_delta_total_return"] == 0.0
+    assert report["aggregate"]["counterfactual_vs_gross_drag_total_return"] > 0
