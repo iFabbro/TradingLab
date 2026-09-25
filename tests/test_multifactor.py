@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import pytest
-from src.factors import momentum_score, value_score, volatility_score, trend_score
+from src.factors import momentum_score, mean_deviation_score, volatility_score, trend_score
 from src.strategies import MultiFactorStrategy
 
 
@@ -25,8 +25,8 @@ def test_momentum_range(trending_up):
     assert -1.0 <= s <= 1.0
 
 
-def test_value_score_range(trending_up):
-    s = value_score(trending_up)
+def test_mean_deviation_score_range(trending_up):
+    s = mean_deviation_score(trending_up)
     assert -1.0 <= s <= 1.0
 
 
@@ -51,7 +51,9 @@ def test_multifactor_signal_buy(trending_up):
 
 
 def test_multifactor_weights_normalize():
-    strat = MultiFactorStrategy(weights={"momentum": 2, "value": 2, "volatility": 1, "trend": 1})
+    strat = MultiFactorStrategy(
+        weights={"momentum": 2, "mean_deviation": 2, "volatility": 1, "trend": 1}
+    )
     assert abs(sum(strat.weights.values()) - 1.0) < 1e-9
 
 
