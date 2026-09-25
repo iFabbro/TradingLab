@@ -25,14 +25,15 @@ def test_signal_is_not_allowed_to_trade_on_same_bar(tmp_path):
     assert result.trade_log.loc[0, "entry_date"] == idx[0]
 
 
-def test_multiple_round_trips_are_logged_and_reconcile_with_equity(tmp_path):
+def test_multiple_round_trips_are_logged_and_reconcile_with_compounding_equity(tmp_path):
     idx = pd.date_range("2024-01-01", periods=7, freq="B")
     prices = pd.DataFrame({"close": [100.0, 110.0, 110.0, 99.0, 99.0, 108.9, 108.9]}, index=idx)
     strategy = TimeSignalStrategy(StrategyConfig(name="round-trips", universe=["DEMO"], lookback=2), [1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0])
     result = BacktestEngine(output_dir=tmp_path).run(prices, strategy)
     assert len(result.trade_log) == 2
     assert result.trade_log.loc[0, "pnl"] == pytest.approx(10000.0)
-    assert result.trade_log.loc[1, "pnl"] == pytest.approx(10000.0)
+    assert result.trade_log.loc[1, "pnl"] == pytest.approx(11000.0)
+    assert result.trade_log.loc[0, "pnl"] + result.trade_log.loc[1, "pnl"] == pytest.approx(result.equity_curve.iloc[-1] - result.equity_curve.iloc[0])
     assert result.metrics["n_trades"] == 2
     assert result.metrics["total_return"] == pytest.approx(0.21)
 
@@ -47,11 +48,21 @@ def test_transaction_costs_and_slippage_reduce_equity(tmp_path):
     assert net.metrics["turnover"] == pytest.approx(2.0)
 
 
-def test_invalid_time_signal_is_rejected(tmp_path):
+def test_exposure_is_clipped_to_safe_long_only_contract(tmp_path):
+    idx = pd.date_range("2024-01-01", periods=4, freq="B")
+    prices = pd.DataFrame({"close": [100.0, 110.0, 120.0, 120.0]}, index=idx)
+    strategy = TimeSignalStrategy(StrategyConfig(name="bounded", universe=["DEMO"], lookback=2), [-1.0, 1.5, 1.0, 0.0])
+    result = BacktestEngine(output_dir=tmp_path).run(prices, strategy)
+    assert result.equity_curve.iloc[0] == pytest.approx(100000.0)
+    assert result.equity_curve.iloc[1] == pytest.approx(100000.0)
+    assert result.equity_curve.iloc[2] == pytest.approx(120000.0)
+
+
+def test_nonfinite_time_signal_is_rejected(tmp_path):
     idx = pd.date_range("2024-01-01", periods=3, freq="B")
     prices = pd.DataFrame({"close": [100.0, 101.0, 102.0]}, index=idx)
-    strategy = TimeSignalStrategy(StrategyConfig(name="invalid", universe=["DEMO"], lookback=2), [0.0, 1.5, 0.0])
-    with pytest.raises(ValueError, match="between 0 and 1"):
+    strategy = TimeSignalStrategy(StrategyConfig(name="invalid", universe=["DEMO"], lookback=2), [0.0, np.nan, 0.0])
+    with pytest.raises(ValueError, match="finite numeric"):
         BacktestEngine(output_dir=tmp_path).run(prices, strategy)
 
 
