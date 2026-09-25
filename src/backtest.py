@@ -6,12 +6,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from src.output_schema import (
-    validate_equity_curve,
-    validate_metrics,
-    validate_risk_summary,
-    validate_trade_log,
-)
+from src.output_schema import validate_equity_curve, validate_metrics, validate_risk_summary, validate_trade_log
 
 
 @dataclass
@@ -28,15 +23,7 @@ class BacktestEngine:
     t+1. Transaction costs and slippage are charged on exposure changes.
     """
 
-    def __init__(
-        self,
-        initial_capital: float = 100000.0,
-        output_dir: str | Path = "data/backtests",
-        strategy_tag: str = "backtest",
-        ticker: str = "",
-        transaction_cost_bps: float = 0.0,
-        slippage_bps: float = 0.0,
-    ) -> None:
+    def __init__(self, initial_capital: float = 100000.0, output_dir: str | Path = "data/backtests", strategy_tag: str = "backtest", ticker: str = "", transaction_cost_bps: float = 0.0, slippage_bps: float = 0.0) -> None:
         if initial_capital <= 0:
             raise ValueError("initial_capital must be > 0")
         if transaction_cost_bps < 0 or slippage_bps < 0:
@@ -56,15 +43,15 @@ class BacktestEngine:
     def run(self, prices: pd.DataFrame, strategy) -> BacktestResult:
         prices = self._validate_prices(prices)
         signals = strategy.generate_signals(prices)
-
         is_time_signal = isinstance(signals, pd.Series) and signals.index.equals(prices.index)
         if is_time_signal:
             exposure = self._normalise_exposure(signals)
+            self._last_exposure = exposure
             equity_curve = self._build_equity_curve(prices["close"], exposure)
             trade_log = self._build_trade_log(prices, strategy, exposure, equity_curve)
         else:
+            self._last_exposure = pd.Series(0.0, index=prices.index)
             equity_curve, trade_log = self._legacy_snapshot_result(prices, strategy, signals)
-
         metrics = self._metrics(equity_curve, trade_log)
         self._save_outputs(trade_log, equity_curve, metrics)
         return BacktestResult(trade_log=trade_log, equity_curve=equity_curve, metrics=metrics)
@@ -100,37 +87,30 @@ class BacktestEngine:
         held_exposure = exposure.shift(1).fillna(0.0)
         gross_returns = returns * held_exposure
         turnover = exposure.diff().abs().fillna(exposure.abs())
-        friction = turnover * self.friction_rate
-        strategy_returns = gross_returns - friction
+        strategy_returns = gross_returns - turnover * self.friction_rate
         equity = self.initial_capital * (1.0 + strategy_returns).cumprod()
         equity.name = "equity"
         return equity
 
     def _build_trade_log(self, prices: pd.DataFrame, strategy, exposure: pd.Series, equity_curve: pd.Series) -> pd.DataFrame:
-        ticker = self.ticker or (
-            str(getattr(strategy, "config", None).universe[0])
-            if getattr(getattr(strategy, "config", None), "universe", None)
-            else "UNKNOWN"
-        )
-        tag = getattr(getattr(strategy, "config", None), "name", self.strategy_tag)
+        cfg = getattr(strategy, "config", None)
+        ticker = self.ticker or (str(cfg.universe[0]) if getattr(cfg, "universe", None) else "UNKNOWN")
+        tag = getattr(cfg, "name", self.strategy_tag)
         rows: list[dict] = []
         active = False
         entry_idx = None
         entry_price = 0.0
         entry_equity = 0.0
         entry_exposure = 0.0
-
         for i, (timestamp, current) in enumerate(exposure.items()):
             current = float(current)
             prev = float(exposure.iloc[i - 1]) if i else 0.0
-
             if not active and current > 0 and prev <= 0:
                 active = True
                 entry_idx = timestamp
                 entry_price = float(prices.loc[timestamp, "close"])
                 entry_equity = float(equity_curve.loc[timestamp])
                 entry_exposure = current
-
             should_exit = active and current <= 0 and prev > 0
             is_last = i == len(exposure) - 1
             if active and (should_exit or is_last):
@@ -138,83 +118,33 @@ class BacktestEngine:
                 exit_price = float(prices.loc[exit_idx, "close"])
                 quantity = (entry_equity * entry_exposure) / entry_price
                 gross_pnl = (exit_price - entry_price) * quantity
-                turnover_value = entry_equity * entry_exposure + float(equity_curve.loc[exit_idx]) * current
-                costs = turnover_value * self.friction_rate
+                exit_exposure = prev if should_exit else current
+                traded_value = entry_equity * entry_exposure + float(equity_curve.loc[exit_idx]) * exit_exposure
+                costs = traded_value * self.friction_rate
                 pnl = gross_pnl - costs
                 bars = int(prices.index.get_loc(exit_idx) - prices.index.get_loc(entry_idx))
-                rows.append({
-                    "ticker": ticker,
-                    "strategy_tag": tag,
-                    "status": "closed",
-                    "entry_date": entry_idx,
-                    "entry_price": entry_price,
-                    "exit_date": exit_idx,
-                    "exit_price": exit_price,
-                    "side": "long",
-                    "quantity": quantity,
-                    "pnl_realized": pnl,
-                    "pnl_unrealized": 0.0,
-                    "pnl": pnl,
-                    "return_pct": exit_price / entry_price - 1.0,
-                    "bars": bars,
-                })
+                rows.append({"ticker": ticker, "strategy_tag": tag, "status": "closed", "entry_date": entry_idx, "entry_price": entry_price, "exit_date": exit_idx, "exit_price": exit_price, "side": "long", "quantity": quantity, "pnl_realized": pnl, "pnl_unrealized": 0.0, "pnl": pnl, "return_pct": exit_price / entry_price - 1.0, "bars": bars})
                 active = False
                 entry_idx = None
-
         if not rows:
-            return pd.DataFrame([{
-                "ticker": ticker,
-                "strategy_tag": tag,
-                "status": "flat",
-                "entry_date": prices.index[0],
-                "entry_price": float(prices["close"].iloc[0]),
-                "exit_date": prices.index[-1],
-                "exit_price": float(prices["close"].iloc[-1]),
-                "side": "long",
-                "quantity": 0.0,
-                "pnl_realized": 0.0,
-                "pnl_unrealized": 0.0,
-                "pnl": 0.0,
-                "return_pct": 0.0,
-                "bars": max(len(prices) - 1, 0),
-            }])
+            return pd.DataFrame([{"ticker": ticker, "strategy_tag": tag, "status": "flat", "entry_date": prices.index[0], "entry_price": float(prices["close"].iloc[0]), "exit_date": prices.index[-1], "exit_price": float(prices["close"].iloc[-1]), "side": "long", "quantity": 0.0, "pnl_realized": 0.0, "pnl_unrealized": 0.0, "pnl": 0.0, "return_pct": 0.0, "bars": max(len(prices) - 1, 0)}])
         return pd.DataFrame(rows)
 
     def _legacy_snapshot_result(self, prices, strategy, signals):
-        """Compatibility path for the existing cross-sectional strategy API."""
         entry_price = float(prices["close"].iloc[0])
         exit_price = float(prices["close"].iloc[-1])
         positive = not signals.empty and float(signals.iloc[0]) > 0
         pnl = exit_price - entry_price if positive else 0.0
         return_pct = exit_price / entry_price - 1.0 if positive else 0.0
         equity = self.initial_capital + (prices["close"].astype(float) - entry_price if positive else 0.0)
-        ticker = self.ticker or (
-            str(getattr(strategy, "config", None).universe[0])
-            if getattr(getattr(strategy, "config", None), "universe", None)
-            else "UNKNOWN"
-        )
-        tag = getattr(getattr(strategy, "config", None), "name", self.strategy_tag)
-        trade = pd.DataFrame([{
-            "ticker": ticker,
-            "strategy_tag": tag,
-            "status": "closed",
-            "entry_date": prices.index[0],
-            "entry_price": entry_price,
-            "exit_date": prices.index[-1],
-            "exit_price": exit_price,
-            "side": "long",
-            "quantity": 1.0 if positive else 0.0,
-            "pnl_realized": pnl,
-            "pnl_unrealized": 0.0,
-            "pnl": pnl,
-            "return_pct": return_pct,
-            "bars": max(len(prices) - 1, 0),
-        }])
+        cfg = getattr(strategy, "config", None)
+        ticker = self.ticker or (str(cfg.universe[0]) if getattr(cfg, "universe", None) else "UNKNOWN")
+        tag = getattr(cfg, "name", self.strategy_tag)
+        trade = pd.DataFrame([{"ticker": ticker, "strategy_tag": tag, "status": "closed", "entry_date": prices.index[0], "entry_price": entry_price, "exit_date": prices.index[-1], "exit_price": exit_price, "side": "long", "quantity": 1.0 if positive else 0.0, "pnl_realized": pnl, "pnl_unrealized": 0.0, "pnl": pnl, "return_pct": return_pct, "bars": max(len(prices) - 1, 0)}])
         return equity, trade
 
     def _metrics(self, equity_curve: pd.Series, trade_log: pd.DataFrame) -> dict:
         rets = equity_curve.pct_change().fillna(0.0)
-        total_return = float(equity_curve.iloc[-1] / equity_curve.iloc[0] - 1.0)
         annualisation = self._annualisation_factor(equity_curve.index)
         std = rets.std(ddof=0)
         sharpe = 0.0 if std == 0 else float(np.sqrt(annualisation) * rets.mean() / std)
@@ -230,20 +160,8 @@ class BacktestEngine:
             days = (equity_curve.index[-1] - equity_curve.index[0]).days
             if days > 0 and equity_curve.iloc[-1] > 0:
                 cagr = float((equity_curve.iloc[-1] / equity_curve.iloc[0]) ** (365.25 / days) - 1.0)
-        turnover = float(exposure_turnover(self._last_exposure) if hasattr(self, "_last_exposure") else 0.0)
-        return {
-            "total_return": total_return,
-            "cagr": cagr,
-            "sharpe": sharpe,
-            "max_drawdown": max_drawdown,
-            "win_rate": win_rate,
-            "profit_factor": profit_factor,
-            "n_trades": n_trades,
-            "turnover": turnover,
-            "transaction_cost_bps": self.transaction_cost_bps,
-            "slippage_bps": self.slippage_bps,
-            "warning_nonpositive_sharpe": bool(sharpe <= 0.0),
-        }
+        turnover = float(self._last_exposure.diff().abs().fillna(self._last_exposure.abs()).sum())
+        return {"total_return": float(equity_curve.iloc[-1] / equity_curve.iloc[0] - 1.0), "cagr": cagr, "sharpe": sharpe, "max_drawdown": max_drawdown, "win_rate": win_rate, "profit_factor": profit_factor, "n_trades": n_trades, "turnover": turnover, "transaction_cost_bps": self.transaction_cost_bps, "slippage_bps": self.slippage_bps, "warning_nonpositive_sharpe": bool(sharpe <= 0.0)}
 
     @staticmethod
     def _annualisation_factor(index: pd.DatetimeIndex) -> float:
@@ -257,11 +175,9 @@ class BacktestEngine:
         validate_trade_log(trade_log).to_csv(self.output_dir / "trade_log.csv", index=False)
         validate_equity_curve(equity_curve.rename("equity").rename_axis("date").reset_index()).to_csv(self.output_dir / "equity_curve.csv", index=False)
         validate_metrics(pd.DataFrame([metrics])).to_csv(self.output_dir / "metrics.csv", index=False)
-
         rets = equity_curve.pct_change().fillna(0.0)
         annualisation = self._annualisation_factor(equity_curve.index)
-        downside = rets[rets < 0]
-        downside_std = downside.std(ddof=0)
+        downside_std = rets[rets < 0].std(ddof=0)
         sortino = 0.0 if pd.isna(downside_std) or downside_std == 0 else float(np.sqrt(annualisation) * rets.mean() / downside_std)
         gains = float(trade_log["pnl"].clip(lower=0).sum())
         losses = abs(float(trade_log["pnl"].clip(upper=0).sum()))
@@ -269,22 +185,5 @@ class BacktestEngine:
         avg_win = float(trade_log.loc[trade_log["pnl"] > 0, "pnl"].mean()) if (trade_log["pnl"] > 0).any() else 0.0
         avg_loss = abs(float(trade_log.loc[trade_log["pnl"] < 0, "pnl"].mean())) if (trade_log["pnl"] < 0).any() else 0.0
         avg_rr = float("inf") if avg_loss == 0 else avg_win / avg_loss
-        risk = pd.DataFrame([{
-            "n_trades": len(trade_log),
-            "win_rate": metrics["win_rate"],
-            "profit_factor": pf,
-            "avg_rr": avg_rr,
-            "sharpe": metrics["sharpe"],
-            "sortino": sortino,
-            "turnover": metrics["turnover"],
-            "transaction_cost_bps": self.transaction_cost_bps,
-            "slippage_bps": self.slippage_bps,
-            "warning_low_pf": bool(pf < 1.2),
-            "warning_nonpositive_sharpe": metrics["warning_nonpositive_sharpe"],
-        }])
+        risk = pd.DataFrame([{"n_trades": len(trade_log), "win_rate": metrics["win_rate"], "profit_factor": pf, "avg_rr": avg_rr, "sharpe": metrics["sharpe"], "sortino": sortino, "warning_low_pf": bool(pf < 1.2), "warning_nonpositive_sharpe": metrics["warning_nonpositive_sharpe"]}])
         validate_risk_summary(risk).to_csv(self.output_dir / "risk_summary.csv", index=False)
-
-
-def exposure_turnover(exposure: pd.Series) -> float:
-    """Return gross absolute exposure change over the backtest."""
-    return float(exposure.diff().abs().fillna(exposure.abs()).sum())
