@@ -59,6 +59,18 @@ def evaluate_acceptance(report: dict[str, Any], metadata: dict[str, Any]) -> dic
     if not provenance.get("git_commit"):
         warnings.append("git commit provenance is unavailable")
 
+    # A preliminary walk-forward result is not sufficient for CANDIDATE status.
+    # The pre-registered untouched confirmation must explicitly complete.
+    confirmation = report.get("robustness_confirmation")
+    if not isinstance(confirmation, dict):
+        reasons.append("robustness confirmation result is missing")
+        hard_fail = True
+    elif confirmation.get("status") != "confirmed_run":
+        status = confirmation.get("status") or "missing"
+        reason = confirmation.get("reason") or "no confirmed frozen parameter was produced"
+        reasons.append(f"robustness confirmation is not confirmed ({status}): {reason}")
+        hard_fail = True
+
     test_metrics = report.get("test_metrics", [])
     if isinstance(test_metrics, dict):
         test_metrics = [test_metrics]
@@ -132,3 +144,25 @@ def append_registry(path: Path, row: dict[str, Any]) -> None:
             field: json.dumps(row[field], sort_keys=True) if field in {"reasons_json", "warnings_json"} else row.get(field, "")
             for field in REGISTRY_FIELDS
         })
+
+
+def update_registry_decision(path: Path, run_id: str, decision: str, reasons: list[str], warnings: list[str]) -> None:
+    """Update the existing registry row for a run after post-experiment confirmation."""
+    if not path.exists():
+        raise FileNotFoundError(path)
+    with path.open(newline="", encoding="utf-8") as handle:
+        rows = list(csv.DictReader(handle))
+    found = False
+    for row in reversed(rows):
+        if row.get("run_id") == run_id:
+            row["decision"] = decision
+            row["reasons_json"] = json.dumps(reasons, sort_keys=True)
+            row["warnings_json"] = json.dumps(warnings, sort_keys=True)
+            found = True
+            break
+    if not found:
+        raise ValueError(f"registry row not found for run_id={run_id}")
+    with path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=REGISTRY_FIELDS, extrasaction="ignore")
+        writer.writeheader()
+        writer.writerows(rows)
