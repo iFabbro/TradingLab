@@ -55,11 +55,19 @@ jobs:
       - name: Run pre-registered benchmark, parameter plateau and untouched confirmation study
         run: PYTHONPATH="$GITHUB_WORKSPACE" python experiments/robustness_confirmation.py --symbol spy
 
+      - name: Finalize acceptance after robustness confirmation
+        run: |
+          PYTHONPATH="$GITHUB_WORKSPACE" python experiments/finalize_acceptance.py \
+            --run-dir experiments/results/spy_donchian_2015-01-01_2025-01-01_1d_yfinance \
+            --confirmation experiments/results/donchian_robustness_study/untouched_confirmation.json \
+            --metadata experiments/results/spy_donchian_2015-01-01_2025-01-01_1d_yfinance/metadata.json
+
       - name: Validate research artifacts
         run: |
           test -s experiments/results/spy_donchian_2015-01-01_2025-01-01_1d_yfinance/trade_log_oos_all.csv
           test -s experiments/results/spy_donchian_2015-01-01_2025-01-01_1d_yfinance/gross_vs_net_oos.csv
           test -s experiments/results/spy_donchian_2015-01-01_2025-01-01_1d_yfinance/gross_vs_net_oos.json
+          test -s experiments/results/spy_donchian_2015-01-01_2025-01-01_1d_yfinance/report.json
           test -s experiments/results/donchian_robustness_study/benchmark_donchian_vs_buy_hold.csv
           test -s experiments/results/donchian_robustness_study/validation_plateau.csv
           test -s experiments/results/donchian_robustness_study/validation_plateau.json
