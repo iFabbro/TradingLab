@@ -161,13 +161,28 @@ def plateau_study(prices: pd.DataFrame, out: Path):
     selected = []
     for window, group in frame.groupby("window"):
         group = group.dropna(subset=["validation_sharpe"]).sort_values("lookback")
+        if group.empty:
+            selected.append({"window": int(window), "plateau": [], "plateau_center": None, "status": "no_finite_validation_sharpe"})
+            continue
         best = group["validation_sharpe"].max()
         plateau = group[group["validation_sharpe"] >= 0.80 * best]
-        selected.append({"window": int(window), "plateau": plateau["lookback"].astype(int).tolist(), "plateau_center": int(round(float(plateau["lookback"].median())))})
+        if plateau.empty:
+            selected.append({"window": int(window), "plateau": [], "plateau_center": None, "status": "empty_plateau"})
+            continue
+        selected.append({"window": int(window), "plateau": plateau["lookback"].astype(int).tolist(), "plateau_center": int(round(float(plateau["lookback"].median()))), "status": "ok"})
     selected_frame = pd.DataFrame(selected)
     selected_frame.to_csv(out / "validation_plateau_selection.csv", index=False)
-    chosen = int(round(float(selected_frame["plateau_center"].median())))
-    summary = {"grid": PLATEAU_GRID, "rule": "within 80% of best validation Sharpe; median plateau member", "window_selection": selected, "confirmation_lookback": chosen}
+    centers = [int(row["plateau_center"]) for row in selected if row["plateau_center"] is not None]
+    if not centers:
+        chosen = None
+        selection_status = "no_valid_plateau"
+    elif len(centers) < len(selected):
+        chosen = None
+        selection_status = "incomplete_plateau"
+    else:
+        chosen = int(round(float(np.median(centers))))
+        selection_status = "ok"
+    summary = {"grid": PLATEAU_GRID, "rule": "within 80% of best validation Sharpe; median plateau member", "window_selection": selected, "confirmation_lookback": chosen, "selection_status": selection_status}
     (out / "validation_plateau.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     return chosen, summary
 
@@ -178,7 +193,13 @@ def confirmation(prices: pd.DataFrame, lookback: int, out: Path):
         raise ValueError("confirmation period returned no data")
     history = prices.loc[:CONFIRMATION_START].iloc[:-1]
     result = run_candidate(pd.concat([history, test]), test.index, test, lookback, engine(out, "confirmation"))
-    output = {"period": {"start": CONFIRMATION_START, "end": CONFIRMATION_END}, "frozen_lookback": lookback, "metrics": {k: metric(result, k) for k in ("total_return", "cagr", "sharpe", "max_drawdown", "turnover")}}
+    output = {"status": "confirmed_run", "period": {"start": CONFIRMATION_START, "end": CONFIRMATION_END}, "frozen_lookback": lookback, "metrics": {k: metric(result, k) for k in ("total_return", "cagr", "sharpe", "max_drawdown", "turnover")}}
+    (out / "untouched_confirmation.json").write_text(json.dumps(output, indent=2), encoding="utf-8")
+    return output
+
+
+def write_unconfirmed_confirmation(out: Path, reason: str):
+    output = {"status": "not_confirmed", "period": {"start": CONFIRMATION_START, "end": CONFIRMATION_END}, "frozen_lookback": None, "metrics": {}, "reason": reason}
     (out / "untouched_confirmation.json").write_text(json.dumps(output, indent=2), encoding="utf-8")
     return output
 
@@ -208,7 +229,10 @@ def main():
     plateau_seconds = time.perf_counter() - started
 
     started = time.perf_counter()
-    confirmation_result = confirmation(all_prices, chosen, out)
+    if chosen is None:
+        confirmation_result = write_unconfirmed_confirmation(out, f"plateau selection not confirmed: {plateau['selection_status']}")
+    else:
+        confirmation_result = confirmation(all_prices, chosen, out)
     confirmation_seconds = time.perf_counter() - started
 
     timings = {
@@ -218,7 +242,7 @@ def main():
         "confirmation_seconds": round(confirmation_seconds, 3),
         "total_seconds": round(time.perf_counter() - total_start, 3),
     }
-    metadata = {"development_period": [DEVELOPMENT_START, DEVELOPMENT_END], "confirmation_period": [CONFIRMATION_START, CONFIRMATION_END], "plateau_grid": PLATEAU_GRID, "plateau_rule": plateau["rule"], "confirmation_lookback": chosen, "no_confirmation_data_used_for_selection": True, "cost_bps": COST_BPS, "slippage_bps": SLIPPAGE_BPS, "implementation": "linear_time_donchian_signal_adapter", "timings_seconds": timings}
+    metadata = {"development_period": [DEVELOPMENT_START, DEVELOPMENT_END], "confirmation_period": [CONFIRMATION_START, CONFIRMATION_END], "plateau_grid": PLATEAU_GRID, "plateau_rule": plateau["rule"], "confirmation_lookback": chosen, "confirmation_status": confirmation_result["status"], "no_confirmation_data_used_for_selection": True, "cost_bps": COST_BPS, "slippage_bps": SLIPPAGE_BPS, "implementation": "linear_time_donchian_signal_adapter", "timings_seconds": timings}
     (out / "study_metadata.json").write_text(json.dumps(metadata, indent=2), encoding="utf-8")
     print(json.dumps({"benchmark_rows": len(benchmark), "confirmation_lookback": chosen, "confirmation": confirmation_result, "timings_seconds": timings}, indent=2))
 
