@@ -48,7 +48,12 @@ def engine(out, label):
 
 
 def strategy(symbol, lookback):
-    return DonchianBreakoutStrategy(StrategyConfig("donchian", [symbol.upper()], int(lookback), {}))
+    config = StrategyConfig(
+        name="donchian",
+        universe=[symbol.upper()],
+        lookback=int(lookback),
+    )
+    return DonchianBreakoutStrategy(config)
 
 
 def metric(result, name):
