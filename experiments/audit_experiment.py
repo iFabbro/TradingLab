@@ -10,10 +10,21 @@ import numpy as np
 import pandas as pd
 
 from src.backtest import BacktestEngine
-from src.strategies import MeanReversionStrategy, MomentumStrategy, StrategyConfig, TrendFollowingStrategy
+from src.strategies import (
+    DonchianBreakoutStrategy,
+    MeanReversionStrategy,
+    MomentumStrategy,
+    StrategyConfig,
+    TrendFollowingStrategy,
+)
 from src.walk_forward import WalkForwardEvaluator
 
-STRATEGIES = {"momentum": MomentumStrategy, "mean_reversion": MeanReversionStrategy, "trend": TrendFollowingStrategy}
+STRATEGIES = {
+    "momentum": MomentumStrategy,
+    "mean_reversion": MeanReversionStrategy,
+    "trend": TrendFollowingStrategy,
+    "donchian": DonchianBreakoutStrategy,
+}
 COUNTERFACTUAL_TRANSACTION_COST_BPS = 5.0
 COUNTERFACTUAL_SLIPPAGE_BPS = 2.0
 
