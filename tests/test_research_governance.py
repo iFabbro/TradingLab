@@ -29,7 +29,9 @@ def test_protocol_fingerprint_is_versioned_and_sha256_backed():
 
 
 def test_acceptance_candidate_requires_positive_oos_and_multiple_positive_windows():
-    result = evaluate_acceptance(_report([0.04, 0.03, -0.01]), _report([])["provenance"])
+    report = _report([0.04, 0.03, -0.01])
+    report["robustness_confirmation"] = {"status": "confirmed_run"}
+    result = evaluate_acceptance(report, _report([])["provenance"])
     assert result["decision"] == "CANDIDATE"
     assert result["reasons"] == []
 
