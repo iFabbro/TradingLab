@@ -1,4 +1,3 @@
-import pytest
 import numpy as np
 from src.montecarlo import run_montecarlo, montecarlo_summary
 

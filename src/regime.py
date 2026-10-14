@@ -5,7 +5,6 @@ Classifica il contesto di mercato su tre dimensioni: trend, volatilità, volume.
 
 from __future__ import annotations
 import pandas as pd
-import numpy as np
 
 
 # ---------------------------------------------------------------------------

@@ -37,7 +37,7 @@ def main() -> None:
         strategy_tag="momentum",
         ticker=ticker,
     )
-    result = engine.run(prices, strategy)
+    engine.run(prices, strategy)
 
     validate_trade_log(pd.read_csv(Path(args.output_dir) / "trade_log.csv"))
     validate_metrics(pd.read_csv(Path(args.output_dir) / "metrics.csv"))
