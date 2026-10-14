@@ -1,5 +1,4 @@
 import pytest
-import numpy as np
 from src.risk import win_rate, profit_factor, sharpe_ratio, sortino_ratio, risk_summary
 
 RETURNS = [0.05, -0.02, 0.03, -0.01, 0.04, -0.03, 0.02, 0.01]

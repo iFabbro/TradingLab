@@ -1,5 +1,4 @@
 import pytest
-import numpy as np
 from src.drawdown import max_drawdown, max_drawdown_duration, drawdown_summary, equity_curve
 
 RETURNS = [0.05, -0.10, 0.03, -0.02, 0.04]
