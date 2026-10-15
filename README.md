@@ -1,7 +1,7 @@
 # TradingLab
 
 <p align="left">
-  <img alt="Python" src="https://img.shields.io/badge/Python-3.10%2B-blue.svg">
+  <img alt="Python" src="https://img.shields.io/badge/Python-3.11%2B-blue.svg">
   <a href="https://github.com/iFabbro/TradingLab/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/iFabbro/TradingLab/actions/workflows/ci.yml/badge.svg"></a>
   <img alt="License" src="https://img.shields.io/badge/License-MIT-yellow.svg">
   <img alt="Status" src="https://img.shields.io/badge/Status-active%20development-orange.svg">
@@ -117,7 +117,7 @@ Run the local suite with:
 pytest -q
 ```
 
-GitHub Actions runs the test suite with coverage on pushes to `main` and pull requests, and executes the safe portfolio demo as part of CI.
+GitHub Actions runs the test suite with coverage on Python 3.11, 3.12 and 3.13 on pushes to `main` and pull requests, and executes the safe portfolio demo as part of CI. Separate workflows run `ruff` (lint) and `gitleaks` (secrets scan).
 
 ## Repository structure
 
