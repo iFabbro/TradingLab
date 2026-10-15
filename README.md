@@ -131,6 +131,10 @@ docs/                   Project and data documentation
 .github/                Issue, PR and CI configuration
 ```
 
+## Research case study
+
+[**A research pipeline that rejects its own strategies**](docs/CASE_STUDY.md): two strategies on 10 years of SPY data, run through a frozen research protocol. Both ended FAILED, one after first being a CANDIDATE. The write-up includes the weaknesses I found in my own process.
+
 ## Project status
 
 The project is under active development. Current work prioritizes reliability, explicit safety boundaries, testability and clear separation between research and execution before adding broader autonomous capabilities.
