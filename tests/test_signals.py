@@ -1,3 +1,4 @@
+import pytest
 import pandas as pd
 
 from src.signals import TradeSetup, generate_setup
@@ -25,11 +26,8 @@ def test_generate_setup_returns_dataclass():
 
 
 def test_generate_setup_rejects_invalid_direction():
-    try:
+    with pytest.raises(ValueError):
         generate_setup(_sample_df(), ticker="TEST", direction="flat")
-        assert False, "Expected ValueError"
-    except ValueError:
-        assert True
 
 
 def test_generate_setup_uses_regime_decision():

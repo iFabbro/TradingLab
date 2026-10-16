@@ -1,7 +1,6 @@
 import pandas as pd
 import subprocess
 import sys
-from pathlib import Path
 from src.output_schema import validate_open_trades
 
 
