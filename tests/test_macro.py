@@ -3,7 +3,6 @@ test_macro.py — Test minimi Fase 10: macro regime classification
 """
 import pandas as pd
 import numpy as np
-import pytest
 from src.macro import classify_macro_regime, compute_macro_signals, get_regime_series
 
 
