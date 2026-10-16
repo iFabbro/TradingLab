@@ -18,7 +18,8 @@ sys.path.insert(0, str(ROOT))
 
 from src.backtest import BacktestEngine
 from src.providers import StooqCSVProvider, YahooFinanceProvider, save_dataset, save_metadata
-from src.research_governance import append_registry, evaluate_acceptance, protocol_fingerprint
+from src.benchmark import buy_and_hold_oos
+from src.research_governance import DECISION_PENDING, RECORD_RUN, append_registry, evaluate_acceptance, protocol_fingerprint
 from src.strategies import DonchianBreakoutStrategy, MeanReversionStrategy, MomentumStrategy, StrategyConfig, TrendFollowingStrategy
 from src.walk_forward import WalkForwardEvaluator
 
@@ -97,6 +98,9 @@ def main():
         raise ValueError("provider returned invalid close prices")
 
     run_id = f"{a.symbol.lower()}_{a.strategy}_{a.start}_{a.end}_{a.interval}_{a.provider}"
+    started_at = datetime.now(timezone.utc).isoformat()
+    # run_id names the experiment definition; execution_id names this single execution and is unique.
+    execution_id = f"{run_id}@{started_at}"
     out = Path(a.output_root) / run_id
     out.mkdir(parents=True, exist_ok=True)
     dataset_path, metadata_path = out / "dataset.csv", out / "metadata.json"
@@ -111,6 +115,7 @@ def main():
         candidate_count *= len(values)
     metadata = {
         "run_id": run_id,
+        "execution_id": execution_id,
         "git_commit": git_commit(),
         "research_protocol": protocol,
         "symbol": a.symbol.upper(),
@@ -180,6 +185,8 @@ def main():
         "nominal_total_candidate_trials": int(len(selection_metrics)),
         "robustness": robustness,
     }
+    benchmark = buy_and_hold_oos(df, result.windows, a.transaction_cost_bps, a.slippage_bps)
+    report["benchmark"] = benchmark
     report = clean(report)
     acceptance = evaluate_acceptance(report, metadata)
     report["acceptance"] = acceptance
@@ -188,9 +195,12 @@ def main():
     oos_bootstrap = robustness.get("oos_daily_block_bootstrap", {}).get("total_return", {})
     oos_sharpe = robustness.get("oos_daily_block_bootstrap", {}).get("sharpe", {})
     oos_psr = robustness.get("oos_confirmation_psr", {})
+    strategy_return = oos_bootstrap.get("estimate")
     registry_row = {
+        "record_type": RECORD_RUN,
+        "execution_id": execution_id,
         "run_id": run_id,
-        "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+        "timestamp_utc": started_at,
         "git_commit": metadata["git_commit"],
         "protocol_version": protocol["protocol_version"],
         "protocol_sha256": protocol["protocol_sha256"],
@@ -207,8 +217,13 @@ def main():
         "oos_total_return": oos_bootstrap.get("estimate"),
         "oos_sharpe": oos_sharpe.get("estimate"),
         "oos_psr": oos_psr.get("probability"),
-        "decision": acceptance["decision"],
-        "reasons_json": acceptance["reasons"],
+        "benchmark": benchmark["benchmark"],
+        "benchmark_total_return": benchmark["total_return"],
+        "benchmark_sharpe": benchmark["sharpe"],
+        "excess_total_return": None if strategy_return is None else strategy_return - benchmark["total_return"],
+        # The verdict is appended by finalize_acceptance.py after the untouched confirmation.
+        "decision": DECISION_PENDING,
+        "reasons_json": ["awaiting robustness confirmation"],
         "warnings_json": acceptance["warnings"],
     }
     append_registry(ROOT / "experiments" / "registry.csv", registry_row)
@@ -222,8 +237,10 @@ def main():
         "parameter_selection": str(selection_path),
         "trial_ledger": str(ledger_path),
         "registry": "experiments/registry.csv",
-        "decision": acceptance["decision"],
-        "reasons": acceptance["reasons"],
+        "execution_id": execution_id,
+        "preliminary_decision": acceptance["decision"],
+        "preliminary_reasons": acceptance["reasons"],
+        "benchmark_total_return": benchmark["total_return"],
         "windows": len(result.test_results),
     }, indent=2))
     return 0

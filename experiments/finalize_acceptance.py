@@ -9,7 +9,9 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from src.research_governance import evaluate_acceptance, update_registry_decision
+from datetime import datetime, timezone
+
+from src.research_governance import append_decision, evaluate_acceptance
 
 
 def parse_args():
@@ -41,16 +43,26 @@ def main() -> int:
     report_path.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
 
     run_id = metadata["run_id"]
-    update_registry_decision(
+    execution_id = metadata.get("execution_id")
+    if not execution_id:
+        raise ValueError("metadata has no execution_id; rerun the experiment with protocol v1.1 tooling")
+    provenance = metadata.get("research_protocol") or {}
+    append_decision(
         ROOT / args.registry,
-        run_id,
+        execution_id,
         acceptance["decision"],
         acceptance["reasons"],
         acceptance["warnings"],
+        run_id=run_id,
+        timestamp_utc=datetime.now(timezone.utc).isoformat(),
+        git_commit=metadata.get("git_commit"),
+        protocol_version=provenance.get("protocol_version"),
+        protocol_sha256=provenance.get("protocol_sha256"),
     )
 
     print(json.dumps({
         "run_id": run_id,
+        "execution_id": execution_id,
         "confirmation_status": confirmation.get("status"),
         "decision": acceptance["decision"],
         "reasons": acceptance["reasons"],

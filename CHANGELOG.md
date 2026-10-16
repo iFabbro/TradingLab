@@ -7,9 +7,18 @@ This project follows the Keep a Changelog format and aims to stay close to Seman
 ## [Unreleased]
 
 ### Added
+- Research protocol v1.1: confirmation rule written into the protocol, changelog, registry and benchmark sections.
+- Append-only, SHA-256 hash-chained research registry with unique `execution_id`, separate `decision` records,
+  automatic non-destructive migration of v1.0 rows and `experiments/verify_registry.py` (run in CI).
+- Buy-and-hold OOS benchmark (`src/benchmark.py`) recorded in the registry for every new run.
+- Case study `docs/CASE_STUDY.md`.
 - README refreshed for portfolio presentation.
 - CONTRIBUTING.md added.
 - GitHub issue templates and pull request template added under `.github/`.
+
+### Changed
+- `update_registry_decision` removed; verdicts are appended with `append_decision`.
+- Registry rows of runs 2026-09-25..27 are kept as `legacy_run` under protocol v1.0.
 
 ## [0.1.0] - 2026-07-25
 

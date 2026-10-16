@@ -1,8 +1,22 @@
 # Strategy Research Protocol
 
 **Status:** Frozen research protocol  
-**Version:** 1.0  
+**Version:** 1.1  
 **Scope:** All strategy experiments conducted in TradingLab after this protocol is adopted.
+
+## Changelog
+
+- **1.1** (adopted after the first two experiments had already been run under 1.0):
+  - the *robustness confirmation* (pre-registered plateau selection and untouched-period test) is now part of the
+    protocol text (section 16). Under 1.0 it was only enforced in the acceptance code, which is a protocol
+    change that should have been versioned;
+  - the registry is append-only and hash-chained, with one unique `execution_id` per execution (section 17);
+  - every registered run records a buy-and-hold benchmark over the same OOS days (section 18).
+- **1.0**: initial frozen protocol.
+
+Results registered under 1.0 are **not** re-labelled as 1.1 results. They stay in the registry as `legacy_run`
+records with their original values and a `protocol_version` of 1.0. A strategy is only evaluated under 1.1
+by a new execution recorded after this version was adopted.
 
 ## Purpose
 
@@ -234,6 +248,39 @@ At minimum, candidate status requires:
 Candidate status does **not** mean production-ready, live-trading-ready, or proven profitable in the future.
 
 A candidate should subsequently undergo additional robustness checks, sensitivity analysis, and—where appropriate—a genuinely untouched holdout or paper-trading/live-simulation phase before real capital is considered.
+
+## 16. Robustness Confirmation (added in 1.1)
+
+A strategy can be classified **CANDIDATE** only if a pre-registered confirmation study status is `confirmed_run`:
+
+- the parameter is selected from *development* data only: in each development window, every candidate whose
+  validation Sharpe is at least 0.8 x the best validation Sharpe forms the plateau;
+- if any development window yields no valid plateau (status `incomplete_plateau`, which includes windows where the
+  best validation Sharpe is not positive), no parameter is frozen and the strategy is **FAILED**;
+- only a frozen parameter is then evaluated, once, on the untouched confirmation period declared in the study
+  script; the period must not be used for selection.
+
+## 17. Research Registry (added in 1.1)
+
+`experiments/registry.csv` is the research ledger.
+
+- It is **append-only**. An execution appends a `run` record with decision `PENDING`; the final verdict is a
+  separate `decision` record. Existing records are never rewritten.
+- Each execution has a unique `execution_id` (`run_id@UTC timestamp`). `run_id` names the experiment definition;
+  repeating it is allowed and produces a new execution.
+- Every record carries `prev_record_sha256` and `record_sha256`. CI runs `experiments/verify_registry.py`, which
+  fails if a record is edited or removed before the last one.
+- The chain is tamper-*evident*, not tamper-proof: it cannot detect removal of the newest records, and anyone with
+  write access can rebuild it. Git history is the external anchor.
+- The current verdict of an execution is its last `decision` record.
+
+## 18. Benchmark (added in 1.1)
+
+Every registered run records, next to the strategy's OOS result, a 100% long buy-and-hold position in the same
+instrument over exactly the same OOS days (`src/benchmark.py`): same per-window return convention, entered once with
+the protocol's 5 bps cost and 2 bps slippage. The registry stores `benchmark_total_return`, `benchmark_sharpe` and
+`excess_total_return`. A strategy that does not beat its benchmark on risk-adjusted terms is not evidence of skill,
+and the comparison is reported whatever its sign. Passing the benchmark is **not** (yet) an acceptance gate.
 
 ## Immutable Experiment Rule
 

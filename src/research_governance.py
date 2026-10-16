@@ -10,12 +10,29 @@ from typing import Any
 PROTOCOL_PATH = Path(__file__).resolve().parents[1] / "docs" / "RESEARCH_PROTOCOL.md"
 PROTOCOL_VERSION_RE = re.compile(r"\*\*Version:\*\*\s*([^\s]+)")
 
-REGISTRY_FIELDS = [
+# Registry v1.0 (legacy) columns. Rows written under protocol v1.0 keep these values unchanged.
+LEGACY_REGISTRY_FIELDS = [
     "run_id", "timestamp_utc", "git_commit", "protocol_version", "protocol_sha256",
     "dataset_sha256", "strategy", "symbol", "requested_start", "requested_end",
     "provider", "interval", "windows", "nominal_candidate_trials", "oos_observations",
     "oos_total_return", "oos_sharpe", "oos_psr", "decision", "reasons_json", "warnings_json",
 ]
+
+# Registry v1.1 adds: a unique execution id, the record type, the buy-and-hold benchmark over the
+# same OOS days, and a SHA-256 hash chain that makes edits and deletions in the middle detectable.
+REGISTRY_FIELDS = LEGACY_REGISTRY_FIELDS + [
+    "execution_id", "record_type",
+    "benchmark", "benchmark_total_return", "benchmark_sharpe", "excess_total_return",
+    "prev_record_sha256", "record_sha256",
+]
+
+RECORD_RUN = "run"                # one execution of an experiment; decision is PENDING until finalised
+RECORD_DECISION = "decision"      # verdict appended after confirmation; never edits the run record
+RECORD_LEGACY_RUN = "legacy_run"  # row written under protocol v1.0 (decision already final)
+RECORD_TYPES = {RECORD_RUN, RECORD_DECISION, RECORD_LEGACY_RUN}
+DECISION_PENDING = "PENDING"
+FINAL_DECISIONS = {"CANDIDATE", "FAILED"}
+_JSON_FIELDS = {"reasons_json", "warnings_json"}
 
 
 def protocol_fingerprint(path: Path = PROTOCOL_PATH) -> dict[str, str]:
@@ -129,40 +146,190 @@ def evaluate_acceptance(report: dict[str, Any], metadata: dict[str, Any]) -> dic
         "decision": decision,
         "reasons": reasons,
         "warnings": warnings,
-        "rules_version": "RESEARCH_PROTOCOL.md v1.0",
+        "rules_version": f"RESEARCH_PROTOCOL.md v{protocol.get('protocol_version') or 'unknown'}",
     }
 
 
-def append_registry(path: Path, row: dict[str, Any]) -> None:
+def _cell(field: str, value: Any) -> str:
+    if value is None:
+        return ""
+    if field in _JSON_FIELDS and not isinstance(value, str):
+        return json.dumps(value, sort_keys=True)
+    return str(value)
+
+
+def _record_hash(cells: dict[str, str]) -> str:
+    """SHA-256 over every field except the hash itself, in the fixed registry column order."""
+    payload = json.dumps(
+        [[field, cells.get(field, "")] for field in REGISTRY_FIELDS if field != "record_sha256"],
+        ensure_ascii=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _read(path: Path) -> tuple[list[str] | None, list[dict[str, str]]]:
+    if not path.exists() or path.stat().st_size == 0:
+        return None, []
+    with path.open(newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        rows = [{key: (value or "") for key, value in row.items()} for row in reader]
+        return list(reader.fieldnames or []), rows
+
+
+def migrate_legacy_registry(path: Path) -> bool:
+    """One-time, deterministic upgrade of a v1.0 registry to the v1.1 column set.
+
+    Every original value is preserved byte for byte. New columns are added; each legacy row gets
+    ``record_type=legacy_run``, a unique ``execution_id`` (``run_id@timestamp_utc``) and a place in
+    the hash chain. The chain therefore protects legacy rows only from the migration onwards.
+    Returns True if a migration was performed.
+    """
+    header, rows = _read(path)
+    if header != LEGACY_REGISTRY_FIELDS:
+        return False
+    previous = ""
+    migrated = []
+    for row in rows:
+        cells = {field: row.get(field, "") for field in LEGACY_REGISTRY_FIELDS}
+        cells["execution_id"] = f"{cells['run_id']}@{cells['timestamp_utc']}"
+        cells["record_type"] = RECORD_LEGACY_RUN
+        cells["prev_record_sha256"] = previous
+        cells["record_sha256"] = _record_hash(cells)
+        previous = cells["record_sha256"]
+        migrated.append(cells)
+    temp = path.with_suffix(path.suffix + ".migrating")
+    with temp.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=REGISTRY_FIELDS)
+        writer.writeheader()
+        writer.writerows({field: row.get(field, "") for field in REGISTRY_FIELDS} for row in migrated)
+    temp.replace(path)
+    return True
+
+
+def ensure_current_format(path: Path) -> None:
+    header, _ = _read(path)
+    if header is None or header == REGISTRY_FIELDS:
+        return
+    if header == LEGACY_REGISTRY_FIELDS:
+        migrate_legacy_registry(path)
+        return
+    raise ValueError(f"unrecognised registry header in {path}; refusing to modify it")
+
+
+def _append(path: Path, record: dict[str, Any]) -> dict[str, str]:
     path.parent.mkdir(parents=True, exist_ok=True)
+    ensure_current_format(path)
+    _, rows = _read(path)
+    record_type = record.get("record_type")
+    if record_type not in RECORD_TYPES:
+        raise ValueError(f"unknown record_type: {record_type!r}")
+    execution_id = str(record.get("execution_id") or "")
+    if not execution_id:
+        raise ValueError("execution_id is required")
+    known = {r["execution_id"] for r in rows if r["record_type"] in {RECORD_RUN, RECORD_LEGACY_RUN}}
+    if record_type == RECORD_DECISION and execution_id not in known:
+        raise ValueError(f"decision refers to an unknown execution_id: {execution_id}")
+    if record_type != RECORD_DECISION and execution_id in known:
+        raise ValueError(f"execution_id already registered: {execution_id}")
+
+    cells = {field: _cell(field, record.get(field)) for field in REGISTRY_FIELDS}
+    cells["prev_record_sha256"] = rows[-1]["record_sha256"] if rows else ""
+    cells["record_sha256"] = _record_hash(cells)
     exists = path.exists() and path.stat().st_size > 0
     with path.open("a", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=REGISTRY_FIELDS, extrasaction="ignore")
+        writer = csv.DictWriter(handle, fieldnames=REGISTRY_FIELDS)
         if not exists:
             writer.writeheader()
-        writer.writerow({
-            field: json.dumps(row[field], sort_keys=True) if field in {"reasons_json", "warnings_json"} else row.get(field, "")
-            for field in REGISTRY_FIELDS
-        })
+        writer.writerow(cells)
+    return cells
 
 
-def update_registry_decision(path: Path, run_id: str, decision: str, reasons: list[str], warnings: list[str]) -> None:
-    """Update the existing registry row for a run after post-experiment confirmation."""
-    if not path.exists():
-        raise FileNotFoundError(path)
-    with path.open(newline="", encoding="utf-8") as handle:
-        rows = list(csv.DictReader(handle))
-    found = False
-    for row in reversed(rows):
-        if row.get("run_id") == run_id:
-            row["decision"] = decision
-            row["reasons_json"] = json.dumps(reasons, sort_keys=True)
-            row["warnings_json"] = json.dumps(warnings, sort_keys=True)
-            found = True
-            break
-    if not found:
-        raise ValueError(f"registry row not found for run_id={run_id}")
-    with path.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=REGISTRY_FIELDS, extrasaction="ignore")
-        writer.writeheader()
-        writer.writerows(rows)
+def append_registry(path: Path, row: dict[str, Any]) -> dict[str, str]:
+    """Append one execution record. Existing records are never modified."""
+    record = dict(row)
+    record.setdefault("record_type", RECORD_RUN)
+    record.setdefault("decision", DECISION_PENDING)
+    return _append(path, record)
+
+
+def append_decision(
+    path: Path,
+    execution_id: str,
+    decision: str,
+    reasons: list[str],
+    warnings: list[str],
+    *,
+    run_id: str,
+    timestamp_utc: str,
+    git_commit: str | None = None,
+    protocol_version: str | None = None,
+    protocol_sha256: str | None = None,
+) -> dict[str, str]:
+    """Append the final verdict for an execution as a new record (the run record is not edited)."""
+    if decision not in FINAL_DECISIONS:
+        raise ValueError(f"decision must be one of {sorted(FINAL_DECISIONS)}")
+    return _append(path, {
+        "record_type": RECORD_DECISION,
+        "execution_id": execution_id,
+        "run_id": run_id,
+        "timestamp_utc": timestamp_utc,
+        "git_commit": git_commit,
+        "protocol_version": protocol_version,
+        "protocol_sha256": protocol_sha256,
+        "decision": decision,
+        "reasons_json": reasons,
+        "warnings_json": warnings,
+    })
+
+
+def resolve_verdicts(path: Path) -> dict[str, dict[str, Any]]:
+    """Current verdict per execution: the last decision record, else the run record's own value."""
+    _, rows = _read(path)
+    verdicts: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        execution_id = row.get("execution_id", "")
+        if row["record_type"] in {RECORD_RUN, RECORD_LEGACY_RUN} or row["record_type"] == RECORD_DECISION:
+            verdicts[execution_id] = {
+                "decision": row["decision"],
+                "reasons": json.loads(row["reasons_json"]) if row["reasons_json"] else [],
+                "warnings": json.loads(row["warnings_json"]) if row["warnings_json"] else [],
+                "source": row["record_type"],
+            }
+    return verdicts
+
+
+def verify_registry(path: Path) -> dict[str, Any]:
+    """Check the registry's structure and hash chain.
+
+    status: ``empty`` | ``legacy`` (v1.0 file, not chained) | ``ok`` | ``corrupt``.
+    The chain is tamper-*evident*: it reveals edits and deletions before the last record. It cannot
+    detect truncation of the tail on its own; git history is the external anchor for that.
+    """
+    header, rows = _read(path)
+    if header is None:
+        return {"status": "empty", "records": 0, "problems": []}
+    if header == LEGACY_REGISTRY_FIELDS:
+        return {"status": "legacy", "records": len(rows), "problems": []}
+    if header != REGISTRY_FIELDS:
+        return {"status": "corrupt", "records": len(rows), "problems": ["unrecognised registry header"]}
+
+    problems: list[str] = []
+    previous = ""
+    seen_runs: set[str] = set()
+    for number, row in enumerate(rows, 1):
+        if row["record_type"] not in RECORD_TYPES:
+            problems.append(f"record {number}: unknown record_type {row['record_type']!r}")
+        if row["prev_record_sha256"] != previous:
+            problems.append(f"record {number}: broken chain (prev hash does not match the previous record)")
+        if row["record_sha256"] != _record_hash(row):
+            problems.append(f"record {number}: content does not match its hash (edited?)")
+        execution_id = row["execution_id"]
+        if row["record_type"] in {RECORD_RUN, RECORD_LEGACY_RUN}:
+            if execution_id in seen_runs:
+                problems.append(f"record {number}: duplicate execution_id {execution_id}")
+            seen_runs.add(execution_id)
+        elif row["record_type"] == RECORD_DECISION and execution_id not in seen_runs:
+            problems.append(f"record {number}: decision for unknown execution_id {execution_id}")
+        previous = row["record_sha256"]
+    return {"status": "corrupt" if problems else "ok", "records": len(rows), "problems": problems}

@@ -24,7 +24,7 @@ def _report(total_returns):
 
 def test_protocol_fingerprint_is_versioned_and_sha256_backed():
     fingerprint = protocol_fingerprint()
-    assert fingerprint["protocol_version"] == "1.0"
+    assert fingerprint["protocol_version"] == "1.1"
     assert len(fingerprint["protocol_sha256"]) == 64
 
 

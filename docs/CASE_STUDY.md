@@ -14,7 +14,7 @@ and, just as important, where the pipeline itself is still weak.
 - Two strategies were run through it on 10 years of daily SPY data. Both ended **FAILED**.
 - The second strategy (Donchian breakout) was first marked **CANDIDATE** and then **rejected**
   once a pre-registered untouched-period confirmation was required. Both results stay in the registry.
-- Reviewing my own pipeline, I found three process weaknesses (listed below) and the fixes I plan.
+- Reviewing my own pipeline, I found three process weaknesses (listed below). Protocol v1.1 addresses them going forward; what it does *not* fix is stated explicitly.
 
 ## The pipeline
 
@@ -65,7 +65,7 @@ How to read it:
   tests it on a period that was never used for selection. The study could not freeze a
   lookback (`incomplete_plateau`: at least one development window produced no valid plateau),
   so **the untouched period was never evaluated** and the verdict is FAILED.
-- A +45.65% return means little without a buy-and-hold comparison; see "Weaknesses" below.
+- A +45.65% return means little without a buy-and-hold comparison. The three rows above were registered before the benchmark existed, so they carry none; runs registered under protocol v1.1 do (see "Weaknesses" below).
 
 ## Things the pipeline caught or exposed
 
@@ -77,28 +77,36 @@ How to read it:
   Donchian state from every prefix, which is O(N^2) per trial; the robustness study uses a
   linear-time adapter implementing the same rule (commit "make Donchian robustness study linear-time").
 - **CI as the lab bench.** A separate workflow runs the test suite, the experiment, the audit,
-  the confirmation study, finalizes the verdict and commits the registry.
+  the confirmation study, appends the verdict, verifies the registry's hash chain and commits the registry.
 
-## Weaknesses I found in my own process
+## Weaknesses I found in my own process, and what protocol v1.1 changes
 
-I would rather list these than have a reviewer find them.
+I would rather list these than have a reviewer find them. Status is stated per item, including what remains unfixed.
 
 1. **A gate was tightened after seeing a result.** All times UTC, 2026-09-26. The confirmation
    study was added at 07:06. The first Donchian result (CANDIDATE) was produced at 13:46 and committed
    to the registry at 13:53. The change "require robustness confirmation for candidate acceptance"
-   landed at 15:49. The
-   protocol text did not change (the SHA-256 is identical in all three registry rows) because
-   the requirement lives in the acceptance code, not in the protocol document. The change made the
-   rules *stricter*, and the original result was kept, but the protocol's own immutability rule
-   says a change like this should be a new protocol version.
-   **Planned fix:** bump to protocol v1.1 and re-register.
-2. **The registry is not append-only.** `update_registry_decision` rewrites an existing row,
-   and the two Donchian runs share one `run_id`.
-   **Planned fix:** unique run ids and append-only decision records.
-3. **No benchmark in the registry.** CI builds a Donchian vs buy-and-hold comparison as an
-   artifact, but its result is not recorded in the registry, so the headline return cannot be
-   judged from the ledger alone.
-   **Planned fix:** record the buy-and-hold return and Sharpe over the same OOS windows.
+   landed at 15:49. The protocol text did not change (the SHA-256 is identical in all three registry
+   rows) because the requirement lived in the acceptance code, not in the protocol document. The change made
+   the rules *stricter* and the original result was kept, but the protocol's own immutability rule says a
+   change like this should be a new protocol version.
+   **Status: partly fixed.** Protocol v1.1 now contains the confirmation rule in its text (section 16) with a
+   changelog, so the code and the document agree. The past is not rewritten: the original run
+   stays a `legacy_run` under v1.0, and the fact that the rule was added after seeing a result remains true.
+2. **The registry was not append-only.** `update_registry_decision` rewrote an existing row,
+   and the two Donchian runs shared one `run_id`.
+   **Status: fixed for new records.** Every execution has a unique `execution_id`; the verdict is a separate
+   appended `decision` record; each record carries a SHA-256 chain, verified in CI
+   (`experiments/verify_registry.py`). Limits: the chain is tamper-*evident*, not tamper-proof. It cannot detect
+   deletion of the newest records, and someone with write access could rebuild it, so git history remains the
+   real anchor. The three existing rows were migrated with their values untouched and are
+   chained only from the migration onwards.
+3. **No benchmark in the registry.** CI built a Donchian vs buy-and-hold comparison as an artifact, but
+   its result was not in the registry.
+   **Status: fixed for new records.** Each new run records the buy-and-hold return and Sharpe over the same OOS
+   days (`src/benchmark.py`, entry cost paid once) and the excess return. It is reported, **not** an acceptance
+   gate yet. The three historical rows have empty benchmark columns. The next CI run after
+   the merge registers a v1.1 execution with a benchmark; until then the +45.65% has no registered comparison.
 
 A smaller design note: the plateau rule keeps lookbacks with validation Sharpe >= 0.8 x best.
 When the best Sharpe in a window is negative, 0.8 x best is *higher* than best, so nothing is selected
@@ -138,6 +146,7 @@ PYTHONPATH=. python experiments/finalize_acceptance.py \
   --run-dir "$RUN" \
   --confirmation experiments/results/donchian_robustness_study/untouched_confirmation.json \
   --metadata "$RUN/metadata.json"
+python experiments/verify_registry.py
 ```
 
 Because the provider's history can change over time, re-running will record a new dataset hash and
