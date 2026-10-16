@@ -2,7 +2,7 @@
 
 <p align="left">
   <img alt="Python" src="https://img.shields.io/badge/Python-3.10%2B-blue.svg">
-  <img alt="Tests" src="https://img.shields.io/badge/Tests-pytest-brightgreen.svg">
+  <a href="https://github.com/iFabbro/TradingLab/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/iFabbro/TradingLab/actions/workflows/ci.yml/badge.svg"></a>
   <img alt="License" src="https://img.shields.io/badge/License-MIT-yellow.svg">
   <img alt="Status" src="https://img.shields.io/badge/Status-active%20development-orange.svg">
 </p>
