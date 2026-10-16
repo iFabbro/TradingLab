@@ -74,6 +74,9 @@ jobs:
           test -s experiments/results/donchian_robustness_study/untouched_confirmation.json
           test -s experiments/registry.csv
 
+      - name: Verify registry hash chain
+        run: python experiments/verify_registry.py
+
       - name: Persist research registry
         run: |
           git config user.name "github-actions[bot]"
