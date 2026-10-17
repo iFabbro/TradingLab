@@ -14,6 +14,7 @@ This project follows the Keep a Changelog format and aims to stay close to Seman
   (`9f15248`, `d067ef1`, `9ce1024`) are unaffected.
 
 ### Added
+- Drawdown analysis: `drawdown_periods`, `max_recovery_time` and `drawdown_suggestions` in `src/drawdown.py`, with tests.
 - Research protocol v1.1: confirmation rule written into the protocol, changelog, registry and benchmark sections.
 - Append-only, SHA-256 hash-chained research registry with unique `execution_id`, separate `decision` records,
   automatic non-destructive migration of v1.0 rows and `experiments/verify_registry.py` (run in CI).
