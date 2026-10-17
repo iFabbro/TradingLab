@@ -53,6 +53,7 @@ All values below are copied from the registry, which CI writes after each run.
 | 2026-09-25 21:47 | Momentum | -0.49% | -0.11 | 0.40 | **FAILED**: aggregate net OOS performance is not positive |
 | 2026-09-26 13:46 | Donchian breakout | +45.65% | 0.66 | 0.93 | **CANDIDATE** under the gates at that time |
 | 2026-09-27 09:12 | Donchian breakout | +45.65% | 0.66 | 0.93 | **FAILED**: robustness confirmation not confirmed (`incomplete_plateau`) |
+| 2026-10-16 07:08 (protocol v1.1) | Donchian breakout | +45.65% | 0.66 | 0.93 | **FAILED** again (decision appended 07:28): same `incomplete_plateau` |
 
 How to read it:
 
@@ -65,11 +66,16 @@ How to read it:
   tests it on a period that was never used for selection. The study could not freeze a
   lookback (`incomplete_plateau`: at least one development window produced no valid plateau),
   so **the untouched period was never evaluated** and the verdict is FAILED.
-- A +45.65% return means little without a buy-and-hold comparison. The three rows above were registered before the benchmark existed, so they carry none; runs registered under protocol v1.1 do (see "Weaknesses" below).
+- **The benchmark settles the headline number.** Over the same OOS days and with the same costs, buy-and-hold SPY
+  returned **+101.26%** (Sharpe 0.78) against Donchian's **+45.65%** (Sharpe 0.66): an excess return of
+  **-55.6 points**. Donchian was profitable in absolute terms and still lost clearly to doing nothing. The
+  registry records this in the first v1.1 run (2026-10-16); the earlier rows carry no benchmark.
+- The v1.1 run used a third dataset hash (the provider returned slightly different history again), with the same OOS
+  figures to the printed precision. That is the same drift described below.
 
 ## Things the pipeline caught or exposed
 
-- **Data drift.** The two Donchian runs have different dataset hashes (the data provider
+- **Data drift.** The Donchian runs have different dataset hashes (the data provider
   returned slightly different history a day later). The OOS return differs only at the sixth
   decimal (0.456505 vs 0.456503), but without the recorded SHA-256 nobody could tell the two
   runs were not on identical data.
@@ -105,8 +111,8 @@ I would rather list these than have a reviewer find them. Status is stated per i
    its result was not in the registry.
    **Status: fixed for new records.** Each new run records the buy-and-hold return and Sharpe over the same OOS
    days (`src/benchmark.py`, entry cost paid once) and the excess return. It is reported, **not** an acceptance
-   gate yet. The three historical rows have empty benchmark columns. The next CI run after
-   the merge registers a v1.1 execution with a benchmark; until then the +45.65% has no registered comparison.
+   gate yet. The three historical rows keep empty benchmark columns. The first v1.1 execution (2026-10-16) is the
+   one that carries it, and it is not flattering: see Results.
 
 A smaller design note: the plateau rule keeps lookbacks with validation Sharpe >= 0.8 x best.
 When the best Sharpe in a window is negative, 0.8 x best is *higher* than best, so nothing is selected
