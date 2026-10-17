@@ -6,6 +6,13 @@ This project follows the Keep a Changelog format and aims to stay close to Seman
 
 ## [Unreleased]
 
+### Changed
+- Repository history was rewritten on 2026-10-17 to correct commit authorship. Commit ids recorded in the
+  `git_commit` column of `experiments/registry.csv` before that date changed for two registry runs; the registry
+  rows are left untouched to keep their hash chain valid. Mapping (old -> new):
+  `8b61872` -> `1a485c0` (merge of PR #29), `e6ef9ff` -> `b7d4742` (merge of PR #30). The three v1.0 runs
+  (`9f15248`, `d067ef1`, `9ce1024`) are unaffected.
+
 ### Added
 - Research protocol v1.1: confirmation rule written into the protocol, changelog, registry and benchmark sections.
 - Append-only, SHA-256 hash-chained research registry with unique `execution_id`, separate `decision` records,
